@@ -312,6 +312,11 @@ export class TvController extends EventEmitter {
     await this.#setUserAgent(userAgentForUrl(this.#url));
 
     this.#log(`[tv-stream] attached to TV page ${this.#shortUrl(this.#url)}`);
+    // A page that failed to load while the server was down (for example the launcher during a
+    // restart) would otherwise stay on Chrome's error page.
+    if (this.#url.startsWith('chrome-error://')) {
+      await this.#navigate(this.#launcherUrl).catch((err) => this.#logCdp('recover launcher', err));
+    }
     this.#viewportAt = 0;
     await this.#refreshViewport().catch((err) => this.#logCdp('viewport', err));
     this.#scheduleApply();
