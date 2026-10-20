@@ -12,6 +12,7 @@
       iOS only opens the on-screen keyboard when focus() runs inside a click/touchend handler.
     - Touchpad deltas are accumulated per pointer event (with acceleration) and flushed at most
       once per animation frame, so the server never receives more than ~60 moves per second.
+    - The touchpad scroll strips (right and bottom) are deliberately not drawn on the pad.
     - Typing is diffed against the previous input value (common prefix), which turns iOS
       autocorrect and predictive replacements into backspaces plus an insert.
 */
@@ -26,6 +27,7 @@
   var REPEAT_INTERVAL_MS = 120;
   var POINTER_BASE_GAIN = 2;
   var SCROLL_GAIN = 2.2;
+  var SCROLL_STRIP_FRACTION = 0.15;
   var TAP_MAX_MS = 280;
   var TAP_MAX_TRAVEL_PX = 10;
   var TYPING_RESET_LENGTH = 200;
@@ -325,9 +327,11 @@
 
   // ================= Touchpad =================
 
-  var pointers = new Map(); // pointerId -> { x, y, t }
-  var gesture = null; // { startT, travel, maxPointers }
-  var lastCentroid = null;
+  // The zone is chosen where the finger lands and kept until it lifts: the right strip (full
+  // height) scrolls vertically, the bottom strip scrolls horizontally, the rest moves the cursor.
+  // Further fingers are ignored. A cursor gesture reports touch start and end so the server can
+  // auto-scroll while the cursor rests at an edge of the TV page.
+  var activePointer = null; // { id, zone, x, y, t, startT, travel }
   var pendingMove = { dx: 0, dy: 0 };
   var pendingScroll = { dx: 0, dy: 0 };
   var frameRequested = false;
@@ -339,11 +343,11 @@
     return POINTER_BASE_GAIN * factor;
   }
 
-  function centroid() {
-    var x = 0;
-    var y = 0;
-    pointers.forEach(function (p) { x += p.x; y += p.y; });
-    return { x: x / pointers.size, y: y / pointers.size };
+  function touchpadZone(event) {
+    var rect = touchpad.getBoundingClientRect();
+    if (event.clientX >= rect.right - rect.width * SCROLL_STRIP_FRACTION) return "scrollY";
+    if (event.clientY >= rect.bottom - rect.height * SCROLL_STRIP_FRACTION) return "scrollX";
+    return "cursor";
   }
 
   function round2(n) {
@@ -369,9 +373,8 @@
   }
 
   function resetTouchpad() {
-    pointers.clear();
-    gesture = null;
-    lastCentroid = null;
+    if (activePointer && activePointer.zone === "cursor") send({ type: "pointer", action: "touch", active: false });
+    activePointer = null;
     pendingMove.dx = pendingMove.dy = 0;
     pendingScroll.dx = pendingScroll.dy = 0;
     touchpad.classList.remove("is-touching");
@@ -379,17 +382,24 @@
 
   touchpad.addEventListener("pointerdown", function (event) {
     event.preventDefault();
+    if (activePointer) return;
     try { touchpad.setPointerCapture(event.pointerId); } catch (err) { /* not capturable */ }
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, t: event.timeStamp });
-    if (!gesture) gesture = { startT: event.timeStamp, travel: 0, maxPointers: 0 };
-    gesture.maxPointers = Math.max(gesture.maxPointers, pointers.size);
-    lastCentroid = centroid();
+    activePointer = {
+      id: event.pointerId,
+      zone: touchpadZone(event),
+      x: event.clientX,
+      y: event.clientY,
+      t: event.timeStamp,
+      startT: event.timeStamp,
+      travel: 0
+    };
+    if (activePointer.zone === "cursor") send({ type: "pointer", action: "touch", active: true });
     touchpad.classList.add("is-touching");
   });
 
   touchpad.addEventListener("pointermove", function (event) {
-    var p = pointers.get(event.pointerId);
-    if (!p || !gesture) return;
+    var p = activePointer;
+    if (!p || event.pointerId !== p.id) return;
     var dx = event.clientX - p.x;
     var dy = event.clientY - p.y;
     var dt = Math.max(1, event.timeStamp - p.t);
@@ -397,43 +407,33 @@
     p.y = event.clientY;
     p.t = event.timeStamp;
     if (!dx && !dy) return;
-    gesture.travel += Math.hypot(dx, dy);
+    p.travel += Math.hypot(dx, dy);
 
-    if (pointers.size === 1 && gesture.maxPointers === 1) {
-      // One finger: cursor move. Once a second finger joined, the rest of the gesture is ignored
-      // until all fingers lift, so lifting one finger after a scroll does not jerk the cursor.
+    if (p.zone === "cursor") {
       var gain = pointerGain(Math.hypot(dx, dy) / dt);
       pendingMove.dx += dx * gain;
       pendingMove.dy += dy * gain;
-      requestFlush();
-    } else if (pointers.size === 2) {
-      // Two fingers: scroll by the centroid movement, natural direction (content follows fingers).
-      var c = centroid();
-      pendingScroll.dx -= (c.x - lastCentroid.x) * SCROLL_GAIN;
-      pendingScroll.dy -= (c.y - lastCentroid.y) * SCROLL_GAIN;
-      lastCentroid = c;
-      requestFlush();
+    } else if (p.zone === "scrollY") {
+      // Scrollbar direction: finger down shows content further down.
+      pendingScroll.dy += dy * SCROLL_GAIN;
+    } else {
+      pendingScroll.dx += dx * SCROLL_GAIN;
     }
+    requestFlush();
   });
 
   function endTouchpadPointer(event) {
-    if (!pointers.has(event.pointerId)) return;
-    pointers.delete(event.pointerId);
-    if (pointers.size > 0) {
-      lastCentroid = centroid();
-      return;
-    }
-    var g = gesture;
-    gesture = null;
+    var p = activePointer;
+    if (!p || event.pointerId !== p.id) return;
+    activePointer = null;
     touchpad.classList.remove("is-touching");
+    flushPointer(); // pending moves go first so a click or touch end lands where the cursor is
+    if (p.zone === "cursor") send({ type: "pointer", action: "touch", active: false });
     if (
       event.type === "pointerup" &&
-      g &&
-      g.maxPointers === 1 &&
-      g.travel < TAP_MAX_TRAVEL_PX &&
-      event.timeStamp - g.startT < TAP_MAX_MS
+      p.travel < TAP_MAX_TRAVEL_PX &&
+      event.timeStamp - p.startT < TAP_MAX_MS
     ) {
-      flushPointer(); // any tiny pending move goes first so the click lands where the cursor is
       haptic();
       send({ type: "pointer", action: "click" });
     }

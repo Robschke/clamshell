@@ -7,6 +7,8 @@
 // - Messages over 16 KB are dropped silently. ws's own maxPayload is set far higher on purpose:
 //   hitting it closes the connection, and one oversized paste must not disconnect the remote.
 // - A ping every 30 s drops phones that went to sleep without closing the socket.
+// - A socket that closes while its finger is still on the touchpad releases the touch, so edge
+//   auto-scroll never keeps running for a remote that went away.
 
 import { WebSocketServer } from 'ws';
 import { UserError } from './tv-controller.js';
@@ -37,6 +39,10 @@ export function validateMessage(msg) {
       return MODES.has(msg.mode) ? { type: 'mode', mode: msg.mode } : 'Unknown mode';
     case 'pointer':
       if (msg.action === 'click') return { type: 'pointer', action: 'click' };
+      if (msg.action === 'touch') {
+        if (typeof msg.active !== 'boolean') return 'Pointer touch needs active true or false';
+        return { type: 'pointer', action: 'touch', active: msg.active };
+      }
       if (msg.action === 'move' || msg.action === 'scroll') {
         if (!isDelta(msg.dx) || !isDelta(msg.dy)) return 'Pointer dx and dy must be finite numbers';
         return { type: 'pointer', action: msg.action, dx: msg.dx, dy: msg.dy };
@@ -84,6 +90,7 @@ export function attachRemoteSocket({ server, controller, log = console.log }) {
       }
       const command = validateMessage(parsed);
       if (typeof command === 'string') return sendError(socket, command);
+      if (command.type === 'pointer' && command.action === 'touch') socket.touching = command.active;
       controller.handle(command).catch((err) => {
         if (err instanceof UserError) sendError(socket, err.message);
         else log(`[tv-stream] ${command.type} failed: ${err.message}`);
@@ -91,7 +98,10 @@ export function attachRemoteSocket({ server, controller, log = console.log }) {
     });
 
     log(`[tv-stream] remote connected (${req.socket.remoteAddress}, ${wss.clients.size} total)`);
-    socket.on('close', () => log(`[tv-stream] remote disconnected (${wss.clients.size} left)`));
+    socket.on('close', () => {
+      if (socket.touching) controller.handle({ type: 'pointer', action: 'touch', active: false }).catch(() => {});
+      log(`[tv-stream] remote disconnected (${wss.clients.size} left)`);
+    });
   });
 
   const onState = (state) => {

@@ -15,6 +15,10 @@
 //   before every navigation the controller starts. A page that reaches youtube.com/tv by itself
 //   (without the TV user agent) gets the override plus one reload.
 // - The overlay source is re-read on every attach so edits apply after a Chrome reconnect.
+// - Edge auto-scroll: while a finger moves the cursor on the remote touchpad and the cursor sits
+//   exactly on a viewport border, mouse wheel events in that direction are sent at a steady
+//   rate. Chrome routes them to the scrollable element under the cursor, so horizontal rows
+//   scroll when they can and the page scrolls otherwise. Lifting the finger stops it.
 
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
@@ -37,6 +41,8 @@ const MAX_QUEUE = 40;
 const STATE_DEBOUNCE_MS = 60;
 const APPLY_DEBOUNCE_MS = 120;
 const VIEWPORT_REFRESH_MS = 3_000;
+const EDGE_SCROLL_INTERVAL_MS = 50;
+const EDGE_SCROLL_STEP_PX = 30;
 
 const KEYS = {
   up: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
@@ -93,6 +99,9 @@ export class TvController extends EventEmitter {
   #cursor = { x: 640, y: 360 };
   #moveDirty = false;
   #moveInFlight = false;
+  #touching = false;
+  #edgeScrollTimer = null;
+  #edgeScrollInFlight = false;
 
   #queue = Promise.resolve();
   #queued = 0;
@@ -176,6 +185,7 @@ export class TvController extends EventEmitter {
     clearTimeout(this.#applyTimer);
     clearTimeout(this.#titleTimer);
     clearTimeout(this.#stateTimer);
+    this.#setTouching(false);
     this.#cdp?.close();
   }
 
@@ -378,6 +388,7 @@ export class TvController extends EventEmitter {
   async handle(message) {
     if (message.type === 'mode') return this.setMode(message.mode);
     if (message.type === 'pointer' && message.action === 'move') return this.#pointerMove(message.dx, message.dy);
+    if (message.type === 'pointer' && message.action === 'touch') return this.#setTouching(message.active);
     this.#requireConnected();
     return this.#enqueue(() => this.#run(message));
   }
@@ -534,6 +545,38 @@ export class TvController extends EventEmitter {
   async #pointerScroll(dx, dy) {
     const { x, y } = this.#cursor;
     await this.#page('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: dx, deltaY: dy }, INPUT_TIMEOUT_MS);
+  }
+
+  #setTouching(active) {
+    this.#touching = active;
+    if (active && !this.#edgeScrollTimer) {
+      this.#edgeScrollTimer = setInterval(() => this.#edgeScrollTick(), EDGE_SCROLL_INTERVAL_MS);
+    } else if (!active && this.#edgeScrollTimer) {
+      clearInterval(this.#edgeScrollTimer);
+      this.#edgeScrollTimer = null;
+    }
+  }
+
+  // Direction of the viewport border the cursor sits on, as wheel deltas (0 when not on a border).
+  #edgeScrollDelta() {
+    const { width, height } = this.#viewport;
+    const { x, y } = this.#cursor;
+    const axis = (pos, max) => (pos <= 0 ? -EDGE_SCROLL_STEP_PX : pos >= max - 1 ? EDGE_SCROLL_STEP_PX : 0);
+    return { dx: axis(x, width), dy: axis(y, height) };
+  }
+
+  async #edgeScrollTick() {
+    if (!this.#touching || this.#edgeScrollInFlight || !this.connected) return;
+    const { dx, dy } = this.#edgeScrollDelta();
+    if (!dx && !dy) return;
+    this.#edgeScrollInFlight = true;
+    try {
+      await this.#pointerScroll(dx, dy);
+    } catch (err) {
+      this.#logCdp('edge scroll', err);
+    } finally {
+      this.#edgeScrollInFlight = false;
+    }
   }
 
   #clampToViewport(x, y) {

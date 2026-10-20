@@ -87,6 +87,7 @@ as the remote. Everything runs locally, one Node process, no cloud.
 { "type": "pointer", "action": "move", "dx": 12.5, "dy": -3 }     // CSS px deltas, already scaled by the remote
 { "type": "pointer", "action": "click" }
 { "type": "pointer", "action": "scroll", "dx": 0, "dy": 40 }       // wheel deltas
+{ "type": "pointer", "action": "touch", "active": true | false }   // finger down/up in the cursor zone
 { "type": "text", "action": "insert", "text": "a" }                // live typing, one or more chars
 { "type": "text", "action": "backspace" }
 { "type": "text", "action": "enter" }
@@ -126,6 +127,10 @@ Mode is global (one TV); switching it on one phone switches it for all.
    Coalesce: at most one CDP mouse move in flight; keep only the latest position.
 8. `pointer click`: mousePressed + mouseReleased (left, clickCount 1) at the cursor.
 9. `pointer scroll`: `mouseWheel` at the cursor.
+9a. `pointer touch`: while active and the cursor sits exactly on a viewport border, send
+    `mouseWheel` toward that border at a steady rate (30 px every 50 ms). Chrome scrolls the
+    scrollable element under the cursor (horizontal rows, or the page). Inactive, or the remote's
+    socket closing, stops it.
 10. `text insert`: `Input.insertText`. `backspace` / `enter`: key events.
 11. `open url`: YouTube watch links (`youtube.com/watch?v=`, `youtu.be/`, `youtube.com/shorts/`)
     become `https://www.youtube.com/tv#/watch?v=<id>` with the TV user agent. Other http(s)
@@ -183,8 +188,10 @@ Behavior rules for the overlay:
   (POST `/api/open`).
 - Remote (Fire TV style): header "TV Stream" + segmented switch `Remote | Pad`. D-pad mode: round
   D-pad with OK in the center; rows Back / Home / ☰; ⏪ / ⏯ / ⏩; 🔉 / 🔇 / 🔊; bottom row
-  Keyboard / Link. Pad mode replaces the D-pad with a touchpad surface (one-finger move, tap =
-  click, two-finger drag = scroll); the button rows stay. Keyboard = live typing (each change is
+  Keyboard / Link. Pad mode replaces the D-pad with a touchpad surface; the button rows stay. The
+  zone is fixed where the finger lands: the right 15% (full height) scrolls vertically in
+  scrollbar direction, the bottom 15% scrolls horizontally, the rest moves the cursor. The strips
+  are not drawn. Tap = click anywhere on the pad. Extra fingers are ignored. Keyboard = live typing (each change is
   sent immediately). Link = sheet with a URL field and "Open on TV".
 
 ## Code conventions
