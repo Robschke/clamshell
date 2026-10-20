@@ -114,22 +114,39 @@ const YOUTUBE_TV_BOX_TEXT = `(document.querySelector('ytlr-search-text-box') || 
 const YOUTUBE_TV_CLEAR_WAIT_MS = 1_500;
 
 // Inherited cursor: none on everything; a constructed stylesheet is not subject to the sites'
-// style-src CSP, with a <style> element as fallback.
+// style-src CSP, with a <style> element as fallback. Sites may replace document.adoptedStyleSheets
+// while loading (Prime Video does), so the sheet is re-added on DOMContentLoaded, load and a
+// cheap 1 s check. The window flag keeps a re-evaluation on reattach from installing it twice.
 const HIDE_SYSTEM_CURSOR = `(() => {
+  if (window.__tvStreamCursorHidden) return;
+  window.__tvStreamCursorHidden = true;
   const css = '*, *::before, *::after { cursor: none !important; }';
+  let sheet = null;
   try {
-    const sheet = new CSSStyleSheet();
+    sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   } catch {
-    const add = () => {
-      const style = document.createElement('style');
-      style.textContent = css;
-      (document.head || document.documentElement).appendChild(style);
-    };
-    if (document.documentElement) add();
-    else document.addEventListener('DOMContentLoaded', add, { once: true });
+    sheet = null;
   }
+  let style = null;
+  const ensure = () => {
+    try {
+      if (sheet) {
+        if (!document.adoptedStyleSheets.includes(sheet)) document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        return;
+      }
+      if (!document.documentElement) return;
+      if (!style) {
+        style = document.createElement('style');
+        style.textContent = css;
+      }
+      if (!style.isConnected) (document.head || document.documentElement).appendChild(style);
+    } catch {}
+  };
+  ensure();
+  document.addEventListener('DOMContentLoaded', ensure);
+  window.addEventListener('load', ensure);
+  setInterval(ensure, 1000);
 })()`;
 
 export class TvController extends EventEmitter {
