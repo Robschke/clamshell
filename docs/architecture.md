@@ -132,7 +132,9 @@ Mode is global (one TV); switching it on one phone switches it for all.
     does not click).
 9b. `pointer flick`: put the cursor back to the gesture start, then glide: wheel events at the
     cursor, locked to the dominant axis, phone direction (flick up scrolls down), speed = finger
-    velocity x 3 (max 10 px/ms), decaying by 0.997 per ms until below 0.05 px/ms.
+    velocity x 3 (max 10 px/ms), decaying by 0.997 per ms until below 0.05 px/ms. On native pages
+    (YouTube TV, launcher) the flick becomes 1 to 5 arrow presses instead (one per 0.6 px/ms of
+    finger speed, same direction); a new touch cancels the remaining presses.
 10. `text insert`: `Input.insertText`. `backspace` / `enter`: key events. On YouTube TV (no text
     field) insert and backspace edit the search term through the `#/search?q=` hash
     (`location.replace`); clearing the last character uses Backspace key presses.

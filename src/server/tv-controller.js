@@ -20,6 +20,8 @@
 //   phone-like deceleration through wheel events at the cursor, locked to the dominant axis.
 //   Chrome routes them to the scrollable element under the cursor (a sideways row or the page).
 //   A new touch stops the glide, and a tap that only stopped a glide does not click.
+// - Pages with their own arrow-key navigation (YouTube TV, the launcher) do not scroll, so there a
+//   flick becomes 1 to 5 arrow presses by speed, in the same phone direction.
 
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
@@ -47,6 +49,9 @@ const GLIDE_GAIN = 3; // TV px per phone px
 const GLIDE_MAX_SPEED = 10; // TV px/ms
 const GLIDE_DECAY_PER_MS = 0.997;
 const GLIDE_MIN_SPEED = 0.05; // TV px/ms, the glide ends below this
+const FLICK_SPEED_PER_STEP = 0.6; // phone px/ms per arrow press on native pages
+const FLICK_MAX_STEPS = 5;
+const FLICK_STEP_GAP_MS = 120;
 
 const KEYS = {
   up: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
@@ -137,6 +142,7 @@ export class TvController extends EventEmitter {
   #gestureStart = null;
   #glide = null; // { vx, vy, at, timer, carryX, carryY, inFlight }
   #swallowClick = false;
+  #flickSteps = 0; // arrow presses a native-page flick still has to send
 
   #queue = Promise.resolve();
   #queued = 0;
@@ -608,7 +614,8 @@ export class TvController extends EventEmitter {
   }
 
   #gestureBegin() {
-    this.#swallowClick = Boolean(this.#glide);
+    this.#swallowClick = Boolean(this.#glide) || this.#flickSteps > 0;
+    this.#flickSteps = 0;
     this.#stopGlide();
     this.#gestureStart = { ...this.#cursor };
   }
@@ -622,6 +629,11 @@ export class TvController extends EventEmitter {
     }
     // Phone direction: content follows the finger, so a flick up scrolls down.
     const horizontal = Math.abs(vx) > Math.abs(vy);
+    if (navigationForUrl(this.#url, this.#launcherOrigin) === 'native') {
+      const key = horizontal ? (vx < 0 ? KEYS.right : KEYS.left) : (vy < 0 ? KEYS.down : KEYS.up);
+      const steps = Math.min(FLICK_MAX_STEPS, Math.max(1, Math.round(Math.hypot(vx, vy) / FLICK_SPEED_PER_STEP)));
+      return this.#flickKeys(key, steps);
+    }
     const clamp = (v) => Math.max(-GLIDE_MAX_SPEED, Math.min(GLIDE_MAX_SPEED, -v * GLIDE_GAIN));
     this.#stopGlide();
     this.#glide = {
@@ -633,6 +645,16 @@ export class TvController extends EventEmitter {
       inFlight: false,
       timer: setInterval(() => this.#glideTick(), GLIDE_FRAME_MS),
     };
+  }
+
+  // Sends the arrow presses of a native-page flick; a new touch (#gestureBegin) cancels the rest.
+  async #flickKeys(key, steps) {
+    this.#flickSteps = steps;
+    while (this.#flickSteps > 0 && this.connected) {
+      this.#flickSteps--;
+      await this.#enqueue(() => this.#pressKey(key));
+      if (this.#flickSteps > 0) await new Promise((resolve) => setTimeout(resolve, FLICK_STEP_GAP_MS));
+    }
   }
 
   #stopGlide() {
