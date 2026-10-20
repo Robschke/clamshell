@@ -48,6 +48,8 @@ as the remote. Everything runs locally, one Node process, no cloud.
 | `src/inject/tv-overlay.js` | overlay | Injected into every page. Highlight navigation, player mode, cursor, quick menu. |
 | `public/tv/` | frontend | TV home screen (`index.html`, css, js). |
 | `public/remote/` | frontend | Phone remote (`index.html`, css, js, web app manifest). |
+| `macos/Sources/` | lead | Mac app (Swift, AppKit): starts and supervises the server, Dock + menu bar menu, QR window. |
+| `macos/build-app.sh` | lead | `npm run app`: compiles the app, builds the icon from `macos/app-icon.svg`, installs to /Applications. |
 
 ## App catalog
 

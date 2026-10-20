@@ -24,10 +24,29 @@ In Safari, "Share → Add to Home Screen" makes the remote a full-screen app.
 On first start macOS asks whether node may accept incoming network connections: allow it, or the
 phone cannot reach the remote.
 
+## Mac app
+
+```sh
+npm run app      # builds "TV Stream.app" and installs it to /Applications
+```
+
+Then open TV Stream from Spotlight (Cmd+Space), Launchpad or the Applications folder. It starts
+the server and the TV, shows a Dock icon and a TV icon in the menu bar:
+
+- Menu bar / Dock menu: status, "Show Remote QR Code…", "Restart TV", "Quit TV Stream".
+- Clicking the Dock icon brings the TV window to the front.
+- Quit (Cmd+Q or the menu) stops the server and closes the TV window.
+- Server output goes to `~/Library/Logs/TV Stream/server.log`; a crashed server is restarted.
+
+The app runs the code in this folder, so server and web changes need only "Restart TV". Changes
+in `macos/` need `npm run app` again. If a server is already running in a terminal, the app says
+so and quits; stop the terminal one first.
+
 ## Stop
 
-`Ctrl+C` in the terminal stops the server and closes the TV window. Quitting only Chrome is not
-enough: the server relaunches it. In kiosk mode, `Cmd+Tab` switches back to the terminal.
+Mac app: quit it (Cmd+Q, Dock or menu bar). Terminal: `Ctrl+C` stops the server and closes the
+TV window. Quitting only Chrome is not enough: the server relaunches it. In kiosk mode, `Cmd+Tab`
+switches back to the terminal.
 
 ## Lid closed
 
