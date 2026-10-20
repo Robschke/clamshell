@@ -54,6 +54,7 @@
   var touchpad = $("touchpad");
   var keyboardBtn = $("keyboardBtn");
   var linkBtn = $("linkBtn");
+  var layoutBtn = $("layoutBtn");
   var typingBar = $("typingBar");
   var typingInput = $("typingInput");
   var typingDone = $("typingDone");
@@ -553,6 +554,30 @@
 
   linkBtn.addEventListener("click", openSheet);
   bindPressFeedback(linkBtn);
+
+  // ================= Layout swap =================
+
+  // One setting for both modes, remembered on this phone. Storage can be unavailable (private
+  // mode), so the remote falls back to the default layout.
+  var LAYOUT_KEY = "tvStream.controlsBottom";
+
+  function applyControlsBottom(bottom) {
+    $("app").classList.toggle("controls-bottom", bottom);
+    layoutBtn.setAttribute("aria-pressed", bottom ? "true" : "false");
+    layoutBtn.setAttribute("aria-label", bottom ? "Move controls to the top" : "Move controls to the bottom");
+  }
+
+  function readControlsBottom() {
+    try { return localStorage.getItem(LAYOUT_KEY) === "1"; } catch (err) { return false; }
+  }
+
+  layoutBtn.addEventListener("click", function () {
+    var bottom = !$("app").classList.contains("controls-bottom");
+    applyControlsBottom(bottom);
+    try { localStorage.setItem(LAYOUT_KEY, bottom ? "1" : "0"); } catch (err) { /* not persisted */ }
+  });
+  bindPressFeedback(layoutBtn);
+  applyControlsBottom(readControlsBottom());
   linkCancel.addEventListener("click", closeSheet);
   sheetBackdrop.addEventListener("click", closeSheet);
   Array.prototype.forEach.call(sheet.querySelectorAll(".sheet-btn"), bindPressFeedback);

@@ -197,7 +197,9 @@ Behavior rules for the overlay:
   Keyboard / Link. Pad mode replaces the D-pad with a touchpad surface; the button rows stay.
   One finger moves the cursor (extra fingers are ignored), tap = click. A short swipe (at most
   300 ms, at least 15 px) that is still faster than 0.4 px/ms at liftoff is a flick and scrolls
-  with momentum. Keyboard = live typing (each change is sent immediately). Link = sheet with a
+  with momentum. A swap button at the end of the Keyboard / Link row moves the D-pad/pad block
+  below the button rows (rows keep their order); one setting for both modes, kept in
+  localStorage. Keyboard = live typing (each change is sent immediately). Link = sheet with a
   URL field and "Open on TV".
 
 ## Code conventions

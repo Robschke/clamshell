@@ -311,7 +311,13 @@ button {
 }
 
 .btn-row-wide {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr 1fr var(--row-h);
+}
+
+/* Controls at the bottom: the D-pad/pad block moves below the button rows, the rows keep their
+   order. Flex order only, so DOM and focus order stay the same. */
+.app.controls-bottom .control-area {
+  order: 1;
 }
 
 .btn {
