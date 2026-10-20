@@ -128,7 +128,7 @@
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "state") onState(msg);
       else if (msg.type === "error") showToast(String(msg.message || "Something went wrong"), true);
-      else if (msg.type === "audioOutputs") renderOutputs(Array.isArray(msg.outputs) ? msg.outputs : [], msg.error);
+      else if (msg.type === "audioOutputs") renderOutputs(Array.isArray(msg.outputs) ? msg.outputs : [], msg.error, msg.scanned === true);
     };
     ws.onclose = function () {
       if (socket !== ws) return;
@@ -569,6 +569,8 @@
 
   // The list comes from the server (Mac sound outputs). A tap switches right away and marks the
   // row optimistically; the server's reply (also sent to other open remotes) is the truth.
+  // AirPlay receivers are only found through Control Center, which briefly appears on the TV, so
+  // that scan runs only from the "Show AirPlay devices" row.
   var KIND_LABELS = {
     builtin: "Built-in",
     hdmi: "HDMI",
@@ -579,6 +581,7 @@
     virtual: "Virtual device",
     other: ""
   };
+  var scanning = false;
   var SVG_NS = "http://www.w3.org/2000/svg";
 
   function checkIcon() {
@@ -592,7 +595,8 @@
     return svg;
   }
 
-  function renderOutputs(outputs, error) {
+  function renderOutputs(outputs, error, scanned) {
+    scanning = false;
     outputList.textContent = "";
     outputs.forEach(function (output) {
       var li = document.createElement("li");
@@ -624,15 +628,32 @@
     if (!outputs.length) {
       var empty = document.createElement("li");
       empty.className = "output-empty";
-      empty.textContent = error ? String(error) : "No sound outputs found";
+      empty.textContent = "No sound outputs found";
       outputList.appendChild(empty);
-    } else if (error) {
-      showToast(String(error), true);
     }
-    var hasAirPlay = outputs.some(function (o) { return o.kind === "airplay"; });
-    outputNote.textContent = outputs.length && !hasAirPlay
-      ? "AirPlay receivers appear here only while macOS makes them available to other apps."
-      : "";
+    outputList.appendChild(scanRow(scanned));
+    outputNote.textContent = error ? String(error) : "";
+  }
+
+  function scanRow(scanned) {
+    var li = document.createElement("li");
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "output-row output-scan";
+    row.textContent = scanned ? "Search AirPlay devices again" : "Show AirPlay devices";
+    row.addEventListener("click", function () {
+      if (scanning) return;
+      if (!send({ type: "audio", action: "scan" })) {
+        showToast("Not connected to the TV", true);
+        return;
+      }
+      scanning = true;
+      row.textContent = "Searching…";
+      row.disabled = true;
+    });
+    bindPressFeedback(row);
+    li.appendChild(row);
+    return li;
   }
 
   function selectOutput(output, row) {

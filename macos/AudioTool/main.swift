@@ -1,10 +1,12 @@
 // Purpose: Command-line helper that lists the Mac's sound outputs and switches the system output,
 //          for the sound settings on the phone remote.
-// Depends on: CoreAudio (system audio devices).
+// Depends on: CoreAudio (system audio devices), macos/AudioTool/ControlCenterSound.swift
+//             (outputs only Control Center can choose, such as AirPlay receivers).
 // Used by: src/server/audio-outputs.js (built to build/tv-audio by macos/build-app.sh)
 // Notes:
-// - Usage: "tv-audio list" or "tv-audio select <device uid> [<data source id>]". Output is JSON
-//   on stdout: { "outputs": [...] } or { "error": "..." } with exit code 1.
+// - Usage: "tv-audio list", "tv-audio select <device uid> [<data source id>]" (CoreAudio),
+//   "tv-audio wireless" and "tv-audio select-cc <name>" (Control Center). Output is JSON on
+//   stdout: { "outputs": [...] } or { "error": "..." } with exit code 1.
 // - Devices are addressed by UID, which stays the same across reboots and replugging; numeric
 //   device ids do not.
 // - An AirPlay device that exposes its receivers as data sources is listed once per receiver.
@@ -144,6 +146,7 @@ func printJSON<T: Encodable>(_ value: T) {
 }
 
 struct OutputsReply: Encodable { let outputs: [Output] }
+struct WirelessReply: Encodable { let outputs: [WirelessOutput] }
 struct ErrorReply: Encodable { let error: String }
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -157,8 +160,12 @@ do {
         // CoreAudio applies the change asynchronously; give it a moment before reading back.
         Thread.sleep(forTimeInterval: 0.2)
         printJSON(OutputsReply(outputs: listOutputs()))
+    case "wireless":
+        printJSON(WirelessReply(outputs: try ControlCenterSound.list()))
+    case "select-cc" where args.count >= 2:
+        printJSON(WirelessReply(outputs: try ControlCenterSound.select(name: args[1])))
     default:
-        throw ToolError("Usage: tv-audio list | tv-audio select <uid> [<source>]")
+        throw ToolError("Usage: tv-audio list | select <uid> [<source>] | wireless | select-cc <name>")
     }
 } catch let error as ToolError {
     printJSON(ErrorReply(error: error.message))

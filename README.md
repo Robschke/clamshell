@@ -46,8 +46,14 @@ so and quits; stop the terminal one first.
 ## Sound output
 
 The gear on the remote opens the settings with the Mac's sound outputs (HDMI TV, speakers,
-Bluetooth, AirPlay when macOS exposes it). A tap switches the system output. This uses the helper
-`build/tv-audio`, built by `npm run app`.
+Bluetooth). A tap switches the system output. This uses the helper `build/tv-audio`, built by
+`npm run app`.
+
+AirPlay receivers (Apple TV, HomePod) are only offered by Control Center, so "Show AirPlay
+devices" reads them there: Control Center appears on the TV for about two seconds. The first time
+macOS asks to allow TV Stream under System Settings > Privacy & Security > Accessibility; turn it
+on and tap the row again. After `npm run app` macOS may ask again, because the rebuilt app counts
+as a new version.
 
 ## Stop
 

@@ -38,7 +38,7 @@ swiftc -O -swift-version 5 \
 swiftc -O -swift-version 5 \
   -target "$(uname -m)-apple-macos13.0" \
   -o "$BUILD_DIR/tv-audio" \
-  "$MACOS_DIR/AudioTool/tv-audio.swift"
+  "$MACOS_DIR"/AudioTool/*.swift
 
 # Icon: render the SVG once at 1024 px, derive the iconset sizes, pack to .icns.
 ICON_TMP="$(mktemp -d)"

@@ -658,6 +658,17 @@ button {
   visibility: visible;
 }
 
+.output-scan {
+  justify-content: center;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.output-scan:disabled {
+  color: var(--muted);
+}
+
 .output-empty {
   padding: 18px 14px;
   font-size: 15px;

@@ -60,6 +60,7 @@ export function validateMessage(msg) {
       return { type: 'text', action: 'insert', text: msg.text };
     case 'audio':
       if (msg.action === 'list') return { type: 'audio', action: 'list' };
+      if (msg.action === 'scan') return { type: 'audio', action: 'scan' };
       if (msg.action === 'select') {
         if (typeof msg.uid !== 'string' || !msg.uid || msg.uid.length > MAX_UID_LENGTH) return 'Unknown sound output';
         const source = msg.source ?? null;
@@ -114,8 +115,8 @@ export function attachRemoteSocket({ server, controller, audio, log = console.lo
   });
 
   const handleAudio = async (socket, command) => {
-    if (command.action === 'list') {
-      const result = await audio.list();
+    if (command.action === 'list' || command.action === 'scan') {
+      const result = await audio[command.action]();
       return sendJson(socket, { type: 'audioOutputs', ...result });
     }
     const result = await audio.select(command.uid, command.source);

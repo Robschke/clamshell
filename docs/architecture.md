@@ -50,7 +50,8 @@ as the remote. Everything runs locally, one Node process, no cloud.
 | `public/tv/` | frontend | TV home screen (`index.html`, css, js). |
 | `public/remote/` | frontend | Phone remote (`index.html`, css, js, web app manifest). |
 | `macos/Sources/` | lead | Mac app (Swift, AppKit): starts and supervises the server, Dock + menu bar menu, QR window. |
-| `macos/AudioTool/tv-audio.swift` | lead | CoreAudio helper: `tv-audio list` / `tv-audio select <uid> [<source>]`, JSON on stdout. |
+| `macos/AudioTool/main.swift` | lead | Sound helper CLI (`build/tv-audio`): `list` / `select <uid> [<source>]` (CoreAudio), `wireless` / `select-cc <name>` (Control Center), JSON on stdout. |
+| `macos/AudioTool/ControlCenterSound.swift` | lead | Reads and selects outputs in Control Center's Sound panel through the Accessibility API (AirPlay receivers). |
 | `macos/build-app.sh` | lead | `npm run app`: compiles the app, builds the icon from `macos/app-icon.svg`, installs to /Applications. |
 
 ## App catalog
@@ -100,6 +101,7 @@ as the remote. Everything runs locally, one Node process, no cloud.
 { "type": "text", "action": "enter" }
 { "type": "open", "url": "https://youtu.be/dQw4w9WgXcQ" }
 { "type": "audio", "action": "list" }                              // sound outputs of the Mac
+{ "type": "audio", "action": "scan" }                              // also read AirPlay/Bluetooth from Control Center
 { "type": "audio", "action": "select", "uid": "BuiltInSpeakerDevice", "source": 1752064048 } // source: AirPlay receiver, optional
 ```
 
@@ -110,12 +112,15 @@ as the remote. Everything runs locally, one Node process, no cloud.
   "tvConnected": true, "display": "external" | "builtin" }
 { "type": "error", "message": "..." }
 { "type": "audioOutputs", "outputs": [{ "uid": "...", "source": 123, "name": "LG TV", "kind": "hdmi", "active": true }],
-  "error": "..." }   // reply to list (asking remote only) and to select (all remotes; on error only the asker)
+  "error": "...", "scanned": true }   // reply to list/scan (asking remote only) and select (all remotes; on error only the asker)
 ```
 
 `kind` is one of `builtin`, `hdmi`, `displayport`, `airplay`, `bluetooth`, `usb`, `virtual`,
-`other`. Selecting sets the macOS default output and system output. AirPlay receivers appear only
-when macOS exposes them through CoreAudio (as data sources of the AirPlay device).
+`other`. Selecting a CoreAudio output sets the macOS default output and system output.
+macOS does not hand AirPlay receivers to other apps (the routing API is private), so `scan`
+drives Control Center's Sound panel through the Accessibility API: it briefly appears on screen,
+needs the Accessibility permission for TV Stream, and its entries have uid `cc:<name>`; selecting
+one clicks it there. The last scan is remembered and merged into later lists (not marked active).
 
 The server sends `state` on connect and whenever it changes (navigation, title, mode, Chrome up/down).
 Mode is global (one TV); switching it on one phone switches it for all.
@@ -217,7 +222,8 @@ Behavior rules for the overlay:
   with Back / Home / ☰ as icons and the Remote | Pad switch (it leaves the header). One setting
   for both modes, kept in localStorage. Keyboard = live typing (each change is sent immediately). Link = sheet with a
   URL field and "Open on TV". A gear in the header opens the settings sheet: "Sound output" list
-  (name, kind, checkmark on the active one); a tap switches the Mac's output.
+  (name, kind, checkmark on the active one); a tap switches the Mac's output. The last row, "Show
+  AirPlay devices", runs the Control Center scan only on demand because it flashes on the TV.
 
 ## Code conventions
 
