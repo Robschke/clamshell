@@ -44,11 +44,13 @@ as the remote. Everything runs locally, one Node process, no cloud.
 | `src/server/display-detector.js` | server | Lists screens via JXA (`osascript -l JavaScript`, NSScreen). |
 | `src/server/cdp-client.js` | server | Minimal CDP client on Node's global `WebSocket`. |
 | `src/server/tv-controller.js` | server | Maps remote commands to CDP calls and overlay calls. Owns cursor position and mode. |
+| `src/server/audio-outputs.js` | lead | Lists / switches the Mac's sound outputs through `build/tv-audio`. |
 | `src/server/app-catalog.js` | server | Tile list (id, name, url, colors, navigation, userAgent). |
 | `src/inject/tv-overlay.js` | overlay | Injected into every page. Highlight navigation, player mode, cursor, quick menu. |
 | `public/tv/` | frontend | TV home screen (`index.html`, css, js). |
 | `public/remote/` | frontend | Phone remote (`index.html`, css, js, web app manifest). |
 | `macos/Sources/` | lead | Mac app (Swift, AppKit): starts and supervises the server, Dock + menu bar menu, QR window. |
+| `macos/AudioTool/tv-audio.swift` | lead | CoreAudio helper: `tv-audio list` / `tv-audio select <uid> [<source>]`, JSON on stdout. |
 | `macos/build-app.sh` | lead | `npm run app`: compiles the app, builds the icon from `macos/app-icon.svg`, installs to /Applications. |
 
 ## App catalog
@@ -97,6 +99,8 @@ as the remote. Everything runs locally, one Node process, no cloud.
 { "type": "text", "action": "backspace" }
 { "type": "text", "action": "enter" }
 { "type": "open", "url": "https://youtu.be/dQw4w9WgXcQ" }
+{ "type": "audio", "action": "list" }                              // sound outputs of the Mac
+{ "type": "audio", "action": "select", "uid": "BuiltInSpeakerDevice", "source": 1752064048 } // source: AirPlay receiver, optional
 ```
 
 ### Server → remote
@@ -105,7 +109,13 @@ as the remote. Everything runs locally, one Node process, no cloud.
 { "type": "state", "mode": "dpad" | "touchpad", "appId": "netflix" | null, "title": "...", "url": "...",
   "tvConnected": true, "display": "external" | "builtin" }
 { "type": "error", "message": "..." }
+{ "type": "audioOutputs", "outputs": [{ "uid": "...", "source": 123, "name": "LG TV", "kind": "hdmi", "active": true }],
+  "error": "..." }   // reply to list (asking remote only) and to select (all remotes; on error only the asker)
 ```
+
+`kind` is one of `builtin`, `hdmi`, `displayport`, `airplay`, `bluetooth`, `usb`, `virtual`,
+`other`. Selecting sets the macOS default output and system output. AirPlay receivers appear only
+when macOS exposes them through CoreAudio (as data sources of the AirPlay device).
 
 The server sends `state` on connect and whenever it changes (navigation, title, mode, Chrome up/down).
 Mode is global (one TV); switching it on one phone switches it for all.
@@ -206,7 +216,8 @@ Behavior rules for the overlay:
   layout: media, volume and Keyboard / Link rows on top, then the D-pad/pad, then one bottom row
   with Back / Home / ☰ as icons and the Remote | Pad switch (it leaves the header). One setting
   for both modes, kept in localStorage. Keyboard = live typing (each change is sent immediately). Link = sheet with a
-  URL field and "Open on TV".
+  URL field and "Open on TV". A gear in the header opens the settings sheet: "Sound output" list
+  (name, kind, checkmark on the active one); a tap switches the Mac's output.
 
 ## Code conventions
 

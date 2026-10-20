@@ -6,7 +6,8 @@
 // - Environment: TV_STREAM_PORT (8787), TV_STREAM_CDP_PORT (9222), TV_STREAM_PROFILE_DIR
 //   (Chrome profile), TV_STREAM_WINDOWED=1 (1280x720 window, no kiosk), TV_STREAM_HEADLESS=1
 //   (no window at all, for automated tests), TV_STREAM_CHROME_PATH (Chrome binary),
-//   TV_STREAM_OVERLAY_PATH (overlay script, for testing the key-event fallbacks).
+//   TV_STREAM_OVERLAY_PATH (overlay script, for testing the key-event fallbacks),
+//   TV_STREAM_AUDIO_TOOL (sound output helper, default build/tv-audio).
 // - Window placement runs on the 5 s display poll: always in kiosk mode (the window must sit
 //   fullscreen on the target display), in windowed mode only after a display change or a Chrome
 //   (re)attach so a dev window the user moved stays where it is. Headless mode never places.
@@ -20,6 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHttpServer } from './http-server.js';
 import { attachRemoteSocket } from './remote-socket.js';
+import { createAudioOutputs } from './audio-outputs.js';
 import { TvController } from './tv-controller.js';
 import { ChromeLauncher, findChrome, placeWindow } from './chrome-launcher.js';
 import { listDisplays, pickTargetDisplay, displayKind, watchDisplays } from './display-detector.js';
@@ -38,6 +40,7 @@ const config = {
   headless: flag('TV_STREAM_HEADLESS'),
   publicDir: path.join(appRoot, 'public'),
   overlayPath: path.resolve(process.env.TV_STREAM_OVERLAY_PATH || path.join(appRoot, 'src/inject/tv-overlay.js')),
+  audioToolPath: path.resolve(process.env.TV_STREAM_AUDIO_TOOL || path.join(appRoot, 'build/tv-audio')),
 };
 config.launcherUrl = `http://localhost:${config.port}/tv/`;
 
@@ -59,7 +62,8 @@ const controller = new TvController({
   log,
 });
 const server = createHttpServer({ publicDir: config.publicDir, port: config.port, controller, log });
-const remoteSocket = attachRemoteSocket({ server, controller, log });
+const audio = createAudioOutputs({ toolPath: config.audioToolPath, log });
+const remoteSocket = attachRemoteSocket({ server, controller, audio, log });
 
 server.on('error', (err) => {
   log(`[tv-stream] http server error: ${err.message}`);

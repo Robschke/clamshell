@@ -37,6 +37,9 @@
           <button type="button" class="segment" role="radio" aria-checked="true" data-mode="dpad">Remote</button>
           <button type="button" class="segment" role="radio" aria-checked="false" data-mode="touchpad">Pad</button>
         </div>
+        <button type="button" class="icon-btn" id="settingsBtn" aria-label="Settings" aria-haspopup="dialog">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>
+        </button>
         <span class="conn-dot" id="connDot" role="img" aria-label="Disconnected"></span>
       </div>
       <p class="now-playing" id="nowPlaying" aria-live="polite">Connecting…</p>
@@ -142,6 +145,18 @@
       <button type="submit" class="sheet-btn sheet-btn-primary">Open on TV</button>
     </div>
   </form>
+
+  <!-- Settings sheet: sound output of the Mac -->
+  <div class="sheet floating settings-sheet" id="settingsSheet" role="dialog" aria-modal="true"
+       aria-labelledby="settingsTitle" aria-hidden="true">
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="settingsTitle">Settings</h2>
+      <button type="button" class="sheet-done" id="settingsDone">Done</button>
+    </div>
+    <p class="settings-section">Sound output</p>
+    <ul class="output-list" id="outputList" role="radiogroup" aria-label="Sound output"></ul>
+    <p class="settings-note" id="outputNote"></p>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="assertive"></div>
 

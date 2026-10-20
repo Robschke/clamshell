@@ -1,5 +1,6 @@
 #!/bin/sh
-# Purpose: Builds "TV Stream.app" from macos/Sources and installs it to /Applications.
+# Purpose: Builds "TV Stream.app" from macos/Sources and installs it to /Applications, and builds
+#   the sound output helper build/tv-audio (macos/AudioTool) that the server uses.
 # Depends on: swiftc (Xcode Command Line Tools), qlmanage + sips + iconutil (icon), codesign,
 #   node on the PATH (its absolute path is baked into Info.plist), macos/app-icon.svg.
 # Used by: package.json ("npm run app")
@@ -32,6 +33,12 @@ swiftc -O -swift-version 5 \
   -target "$(uname -m)-apple-macos13.0" \
   -o "$BUNDLE/Contents/MacOS/TVStream" \
   "$MACOS_DIR"/Sources/*.swift
+
+# Sound output helper for the remote's settings; the server runs it from build/.
+swiftc -O -swift-version 5 \
+  -target "$(uname -m)-apple-macos13.0" \
+  -o "$BUILD_DIR/tv-audio" \
+  "$MACOS_DIR/AudioTool/tv-audio.swift"
 
 # Icon: render the SVG once at 1024 px, derive the iconset sizes, pack to .icns.
 ICON_TMP="$(mktemp -d)"

@@ -43,6 +43,12 @@ The app runs the code in this folder, so server and web changes need only "Resta
 in `macos/` need `npm run app` again. If a server is already running in a terminal, the app says
 so and quits; stop the terminal one first.
 
+## Sound output
+
+The gear on the remote opens the settings with the Mac's sound outputs (HDMI TV, speakers,
+Bluetooth, AirPlay when macOS exposes it). A tap switches the system output. This uses the helper
+`build/tv-audio`, built by `npm run app`.
+
 ## Stop
 
 Mac app: quit it (Cmd+Q, Dock or menu bar). Terminal: `Ctrl+C` stops the server and closes the

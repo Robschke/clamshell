@@ -1,6 +1,6 @@
 /*
   Purpose: Phone remote behavior: WebSocket connection, buttons with auto-repeat, mode switch,
-           touchpad gestures, live typing and the open-link sheet.
+           touchpad gestures, live typing, the open-link sheet and the settings sheet (sound output).
   Depends on: /remote/index.html (element ids, data-key / data-media / data-repeat attributes),
               /remote/remote.css (state classes), server WebSocket /ws and GET /api/apps
               (message formats in docs/architecture.md).
@@ -59,6 +59,11 @@
   var buttonsSection = $("buttons");
   var navRow = $("navRow");
   var bottomBar = $("bottomBar");
+  var settingsBtn = $("settingsBtn");
+  var settingsSheet = $("settingsSheet");
+  var settingsDone = $("settingsDone");
+  var outputList = $("outputList");
+  var outputNote = $("outputNote");
   var typingBar = $("typingBar");
   var typingInput = $("typingInput");
   var typingDone = $("typingDone");
@@ -123,6 +128,7 @@
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "state") onState(msg);
       else if (msg.type === "error") showToast(String(msg.message || "Something went wrong"), true);
+      else if (msg.type === "audioOutputs") renderOutputs(Array.isArray(msg.outputs) ? msg.outputs : [], msg.error);
     };
     ws.onclose = function () {
       if (socket !== ws) return;
@@ -559,6 +565,113 @@
   linkBtn.addEventListener("click", openSheet);
   bindPressFeedback(linkBtn);
 
+  // ================= Settings sheet (sound output) =================
+
+  // The list comes from the server (Mac sound outputs). A tap switches right away and marks the
+  // row optimistically; the server's reply (also sent to other open remotes) is the truth.
+  var KIND_LABELS = {
+    builtin: "Built-in",
+    hdmi: "HDMI",
+    displayport: "DisplayPort",
+    airplay: "AirPlay",
+    bluetooth: "Bluetooth",
+    usb: "USB",
+    virtual: "Virtual device",
+    other: ""
+  };
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function checkIcon() {
+    var svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", "icon output-check");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    var path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", "M5 12.5l4.5 4.5L19 7.5");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function renderOutputs(outputs, error) {
+    outputList.textContent = "";
+    outputs.forEach(function (output) {
+      var li = document.createElement("li");
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "output-row";
+      row.setAttribute("role", "radio");
+      row.setAttribute("aria-checked", output.active ? "true" : "false");
+      var text = document.createElement("span");
+      text.className = "output-text";
+      var name = document.createElement("span");
+      name.className = "output-name";
+      name.textContent = String(output.name || "Unknown output");
+      text.appendChild(name);
+      var kindLabel = KIND_LABELS[output.kind] || "";
+      if (kindLabel) {
+        var kind = document.createElement("span");
+        kind.className = "output-kind";
+        kind.textContent = kindLabel;
+        text.appendChild(kind);
+      }
+      row.appendChild(text);
+      row.appendChild(checkIcon());
+      row.addEventListener("click", function () { selectOutput(output, row); });
+      bindPressFeedback(row);
+      li.appendChild(row);
+      outputList.appendChild(li);
+    });
+    if (!outputs.length) {
+      var empty = document.createElement("li");
+      empty.className = "output-empty";
+      empty.textContent = error ? String(error) : "No sound outputs found";
+      outputList.appendChild(empty);
+    } else if (error) {
+      showToast(String(error), true);
+    }
+    var hasAirPlay = outputs.some(function (o) { return o.kind === "airplay"; });
+    outputNote.textContent = outputs.length && !hasAirPlay
+      ? "AirPlay receivers appear here only while macOS makes them available to other apps."
+      : "";
+  }
+
+  function selectOutput(output, row) {
+    if (row.getAttribute("aria-checked") === "true") return;
+    var message = { type: "audio", action: "select", uid: output.uid };
+    if (typeof output.source === "number") message.source = output.source;
+    if (!send(message)) {
+      showToast("Not connected to the TV", true);
+      return;
+    }
+    Array.prototype.forEach.call(outputList.querySelectorAll(".output-row"), function (other) {
+      other.setAttribute("aria-checked", other === row ? "true" : "false");
+    });
+  }
+
+  function openSettings() {
+    settingsSheet.classList.add("is-open");
+    settingsSheet.setAttribute("aria-hidden", "false");
+    sheetBackdrop.classList.add("is-open");
+    outputList.textContent = "";
+    outputNote.textContent = "";
+    var loading = document.createElement("li");
+    loading.className = "output-empty";
+    loading.textContent = "Loading…";
+    outputList.appendChild(loading);
+    if (!send({ type: "audio", action: "list" })) renderOutputs([], "Not connected to the TV");
+  }
+
+  function closeSettings() {
+    settingsSheet.classList.remove("is-open");
+    settingsSheet.setAttribute("aria-hidden", "true");
+    if (!sheet.classList.contains("is-open")) sheetBackdrop.classList.remove("is-open");
+  }
+
+  settingsBtn.addEventListener("click", openSettings);
+  bindPressFeedback(settingsBtn);
+  settingsDone.addEventListener("click", closeSettings);
+  bindPressFeedback(settingsDone);
+
   // ================= Layout swap =================
 
   // One setting for both modes, remembered on this phone. Storage can be unavailable (private
@@ -574,7 +687,7 @@
       bottomBar.appendChild(modeSwitch);
     } else {
       buttonsSection.insertBefore(navRow, buttonsSection.firstChild);
-      headerRow.insertBefore(modeSwitch, connDot);
+      headerRow.insertBefore(modeSwitch, settingsBtn);
     }
     bottomBar.hidden = !bottom;
     layoutBtn.setAttribute("aria-pressed", bottom ? "true" : "false");
@@ -593,7 +706,10 @@
   bindPressFeedback(layoutBtn);
   applyControlsBottom(readControlsBottom());
   linkCancel.addEventListener("click", closeSheet);
-  sheetBackdrop.addEventListener("click", closeSheet);
+  sheetBackdrop.addEventListener("click", function () {
+    closeSheet();
+    closeSettings();
+  });
   Array.prototype.forEach.call(sheet.querySelectorAll(".sheet-btn"), bindPressFeedback);
 
   sheet.addEventListener("submit", function (event) {

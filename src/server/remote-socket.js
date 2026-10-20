@@ -1,5 +1,6 @@
 // Purpose: WebSocket endpoint /ws for phone remotes: validates messages, forwards them to the tv-controller, broadcasts state.
-// Depends on: ws (WebSocketServer), src/server/tv-controller.js (TvController, UserError).
+// Depends on: ws (WebSocketServer), src/server/tv-controller.js (TvController, UserError),
+//   src/server/audio-outputs.js (sound output list and switch).
 // Used by: src/server/main.js
 // Notes:
 // - Validation is strict on type and required fields (unknown types or bad values get
@@ -7,6 +8,8 @@
 // - Messages over 16 KB are dropped silently. ws's own maxPayload is set far higher on purpose:
 //   hitting it closes the connection, and one oversized paste must not disconnect the remote.
 // - A ping every 30 s drops phones that went to sleep without closing the socket.
+// - Sound output messages bypass the TV controller: a list goes back to the asking remote only,
+//   a switch is broadcast so every open settings sheet shows the new checkmark.
 
 import { WebSocketServer } from 'ws';
 import { UserError } from './tv-controller.js';
@@ -17,6 +20,7 @@ const HEARTBEAT_MS = 30_000;
 const MAX_POINTER_DELTA = 10_000;
 const MAX_TEXT_LENGTH = 4_000;
 const MAX_URL_LENGTH = 4_096;
+const MAX_UID_LENGTH = 512;
 
 const KEYS = new Set(['up', 'down', 'left', 'right', 'ok', 'back', 'home', 'menu']);
 const MEDIA = new Set(['playpause', 'rewind', 'forward', 'volumeDown', 'volumeUp', 'mute']);
@@ -54,6 +58,15 @@ export function validateMessage(msg) {
         return 'Text must be a non-empty string';
       }
       return { type: 'text', action: 'insert', text: msg.text };
+    case 'audio':
+      if (msg.action === 'list') return { type: 'audio', action: 'list' };
+      if (msg.action === 'select') {
+        if (typeof msg.uid !== 'string' || !msg.uid || msg.uid.length > MAX_UID_LENGTH) return 'Unknown sound output';
+        const source = msg.source ?? null;
+        if (source !== null && !(Number.isInteger(source) && source >= 0 && source <= 0xffffffff)) return 'Unknown sound output';
+        return { type: 'audio', action: 'select', uid: msg.uid, source };
+      }
+      return 'Unknown audio action';
     case 'open':
       if (typeof msg.url !== 'string' || !msg.url.trim() || msg.url.length > MAX_URL_LENGTH) return 'URL must be a non-empty string';
       return { type: 'open', url: msg.url };
@@ -62,7 +75,7 @@ export function validateMessage(msg) {
   }
 }
 
-export function attachRemoteSocket({ server, controller, log = console.log }) {
+export function attachRemoteSocket({ server, controller, audio, log = console.log }) {
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: HARD_PAYLOAD_LIMIT });
 
   const sendJson = (socket, payload) => {
@@ -89,6 +102,7 @@ export function attachRemoteSocket({ server, controller, log = console.log }) {
       }
       const command = validateMessage(parsed);
       if (typeof command === 'string') return sendError(socket, command);
+      if (command.type === 'audio') return handleAudio(socket, command);
       controller.handle(command).catch((err) => {
         if (err instanceof UserError) sendError(socket, err.message);
         else log(`[tv-stream] ${command.type} failed: ${err.message}`);
@@ -98,6 +112,16 @@ export function attachRemoteSocket({ server, controller, log = console.log }) {
     log(`[tv-stream] remote connected (${req.socket.remoteAddress}, ${wss.clients.size} total)`);
     socket.on('close', () => log(`[tv-stream] remote disconnected (${wss.clients.size} left)`));
   });
+
+  const handleAudio = async (socket, command) => {
+    if (command.action === 'list') {
+      const result = await audio.list();
+      return sendJson(socket, { type: 'audioOutputs', ...result });
+    }
+    const result = await audio.select(command.uid, command.source);
+    if (result.error) return sendJson(socket, { type: 'audioOutputs', ...result });
+    for (const client of wss.clients) sendJson(client, { type: 'audioOutputs', ...result });
+  };
 
   const onState = (state) => {
     const json = JSON.stringify(state);
