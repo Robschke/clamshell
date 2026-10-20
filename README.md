@@ -33,7 +33,8 @@ npm run app      # builds "TV Stream.app" and installs it to /Applications
 Then open TV Stream from Spotlight (Cmd+Space), Launchpad or the Applications folder. It starts
 the server and the TV, shows a Dock icon and a TV icon in the menu bar:
 
-- Menu bar / Dock menu: status, "Show Remote QR Code…", "Restart TV", "Quit TV Stream".
+- Menu bar menu: status, lid-closed state, "Show Remote QR Code…", "Restart TV", "Quit TV Stream".
+- Dock menu (right-click): "Show Remote QR Code…", "Restart TV".
 - Clicking the Dock icon brings the TV window to the front.
 - Quit (Cmd+Q or the menu) stops the server and closes the TV window.
 - Server output goes to `~/Library/Logs/TV Stream/server.log`; a crashed server is restarted.
@@ -50,8 +51,16 @@ switches back to the terminal.
 
 ## Lid closed
 
-macOS keeps running with the lid closed when the Mac is on power and an external display is
-connected (clamshell mode). The server keeps the Mac awake (`caffeinate`) while it runs.
+On power with an external display connected, macOS keeps running with the lid closed (clamshell
+mode), and the server keeps the Mac awake (`caffeinate`) while it runs.
+
+On battery macOS always sleeps on lid close. The Mac app therefore asks for the administrator
+password at start and sets `pmset disablesleep 1` while it runs; a watcher started with the same
+authorization sets it back to 0 about 2 s after the last TVStream process ends (quit or crash).
+If the password prompt is cancelled, the menu bar menu shows "Keep Awake With Lid Closed…" to
+try again. Check with `pmset -g | grep SleepDisabled`; after a hard power-off while TV Stream was
+running it can stay at 1 until TV Stream starts and quits again, or until
+`sudo pmset -a disablesleep 0`.
 
 ## First use
 

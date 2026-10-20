@@ -1,7 +1,9 @@
 // Purpose: TV Stream Mac app: starts the server on launch, shows a Dock icon and a menu bar
-//          menu (status, remote QR code, restart, quit), and stops the server on quit.
+//          menu (status, remote QR code, restart, quit), keeps the Mac awake with the lid
+//          closed while it runs, and stops the server on quit.
 // Depends on: macos/Sources/ServerProcess.swift, macos/Sources/RemoteQRWindow.swift,
-//             Info.plist keys TVStreamAppRoot and TVStreamNodePath (macos/build-app.sh).
+//             macos/Sources/LidSleepGuard.swift, Info.plist keys TVStreamAppRoot and
+//             TVStreamNodePath (macos/build-app.sh).
 // Used by: macos/Sources/main.swift
 // Notes:
 // - Quitting waits for the server to shut down (it closes the TV window and caffeinate), so
@@ -15,6 +17,9 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var server: ServerProcess!
+    private let lidGuard = LidSleepGuard()
+    private let lidLine = NSMenuItem(title: "Lid closed: checking…", action: nil, keyEquivalent: "")
+    private var lidEnableItem: NSMenuItem!
     private var statusItem: NSStatusItem!
     private let statusLine = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
     private var qrWindow: RemoteQRWindowController?
@@ -41,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.alreadyRunning()
             } else {
                 self.server.start()
+                self.enableLidMode()
             }
         }
     }
@@ -100,6 +106,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         statusLine.isEnabled = false
         menu.addItem(statusLine)
+        lidLine.isEnabled = false
+        menu.addItem(lidLine)
+        lidEnableItem = NSMenuItem(title: "Keep Awake With Lid Closed…", action: #selector(enableLidMode), keyEquivalent: "")
+        lidEnableItem.isHidden = true
+        menu.addItem(lidEnableItem)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Show Remote QR Code…", action: #selector(showQRCode), keyEquivalent: "")
         menu.addItem(withTitle: "Restart TV", action: #selector(restartTv), keyEquivalent: "")
@@ -120,7 +131,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func renderLid(_ state: LidSleepGuard.State) {
+        switch state {
+        case .active: lidLine.title = "Lid closed: stays awake"
+        case .off, .declined: lidLine.title = "Lid closed: sleeps on battery"
+        case .failed: lidLine.title = "Lid closed: could not keep awake"
+        }
+        lidEnableItem.isHidden = state == .active
+    }
+
     // MARK: - Actions
+
+    @objc private func enableLidMode() {
+        lidGuard.onStateChange = { [weak self] state in self?.renderLid(state) }
+        NSApp.activate(ignoringOtherApps: true)
+        lidGuard.enable()
+        renderLid(lidGuard.state)
+    }
 
     @objc private func showQRCode() {
         if qrWindow == nil { qrWindow = RemoteQRWindowController() }
