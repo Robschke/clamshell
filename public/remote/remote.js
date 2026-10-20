@@ -55,6 +55,10 @@
   var keyboardBtn = $("keyboardBtn");
   var linkBtn = $("linkBtn");
   var layoutBtn = $("layoutBtn");
+  var headerRow = $("headerRow");
+  var buttonsSection = $("buttons");
+  var navRow = $("navRow");
+  var bottomBar = $("bottomBar");
   var typingBar = $("typingBar");
   var typingInput = $("typingInput");
   var typingDone = $("typingDone");
@@ -558,11 +562,21 @@
   // ================= Layout swap =================
 
   // One setting for both modes, remembered on this phone. Storage can be unavailable (private
-  // mode), so the remote falls back to the default layout.
+  // mode), so the remote falls back to the default layout. In the bottom layout the nav row and
+  // the mode switch move into the bar under the D-pad/pad, so the most used controls sit
+  // together within thumb reach; moving the elements keeps their event handlers.
   var LAYOUT_KEY = "tvStream.controlsBottom";
 
   function applyControlsBottom(bottom) {
     $("app").classList.toggle("controls-bottom", bottom);
+    if (bottom) {
+      bottomBar.appendChild(navRow);
+      bottomBar.appendChild(modeSwitch);
+    } else {
+      buttonsSection.insertBefore(navRow, buttonsSection.firstChild);
+      headerRow.insertBefore(modeSwitch, connDot);
+    }
+    bottomBar.hidden = !bottom;
     layoutBtn.setAttribute("aria-pressed", bottom ? "true" : "false");
     layoutBtn.setAttribute("aria-label", bottom ? "Move controls to the top" : "Move controls to the bottom");
   }

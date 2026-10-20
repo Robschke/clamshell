@@ -314,10 +314,44 @@ button {
   grid-template-columns: 1fr 1fr var(--row-h);
 }
 
-/* Controls at the bottom: the D-pad/pad block moves below the button rows, the rows keep their
-   order. Flex order only, so DOM and focus order stay the same. */
+/* Controls at the bottom: the D-pad/pad block moves below the button rows, and the bottom bar
+   (Back / Home / menu as icons plus the mode switch, moved there by remote.js) sits under it. */
 .app.controls-bottom .control-area {
   order: 1;
+}
+
+.bottom-bar {
+  order: 2;
+  flex: none;
+  display: flex;
+  gap: var(--gap);
+}
+
+.bottom-bar[hidden] {
+  display: none;
+}
+
+.bottom-bar .btn-row {
+  flex: none;
+  grid-template-columns: repeat(3, var(--row-h));
+}
+
+.bottom-bar .btn-label {
+  display: none;
+}
+
+.bottom-bar .segmented {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--row-h);
+  min-height: 56px;
+  box-sizing: border-box;
+}
+
+.bottom-bar .segment {
+  height: 100%;
+  min-width: 0;
+  padding: 0 6px;
 }
 
 .btn {

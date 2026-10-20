@@ -30,7 +30,7 @@
 <body>
   <div class="app" id="app">
     <header class="header">
-      <div class="header-row">
+      <div class="header-row" id="headerRow">
         <h1 class="brand">TV Stream</h1>
         <div class="segmented" id="modeSwitch" role="radiogroup" aria-label="Control mode" data-mode="dpad">
           <span class="segmented-thumb" aria-hidden="true"></span>
@@ -67,8 +67,8 @@
       </div>
     </main>
 
-    <section class="buttons" aria-label="Buttons">
-      <div class="btn-row">
+    <section class="buttons" id="buttons" aria-label="Buttons">
+      <div class="btn-row" id="navRow">
         <button type="button" class="btn" data-key="back" aria-label="Back">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
           <span class="btn-label">Back</span>
@@ -117,6 +117,9 @@
         </button>
       </div>
     </section>
+
+    <!-- Reverse layout only: the nav row and the mode switch move here, below the D-pad/pad -->
+    <div class="bottom-bar" id="bottomBar" hidden></div>
   </div>
 
   <!-- Live typing: the bar sits above the iOS keyboard; the input inside is invisible but real -->
