@@ -15,6 +15,9 @@
 //   before every navigation the controller starts. A page that reaches youtube.com/tv by itself
 //   (without the TV user agent) gets the override plus one reload.
 // - The overlay source is re-read on every attach so edits apply after a Chrome reconnect.
+// - With hideSystemCursor, a separate script hides the Mac's own mouse pointer in every frame:
+//   the remote draws its own cursor, and the real pointer would otherwise stay visible wherever
+//   the mouse was left. It is injected independently of the overlay so it also works without it.
 // - Flick scrolling: the remote marks each touchpad gesture start and reports a flick with the
 //   finger's liftoff velocity. The cursor returns to the gesture start and the page glides with
 //   phone-like deceleration through wheel events at the cursor, locked to the dominant axis.
@@ -110,10 +113,30 @@ const YOUTUBE_TV_EDIT = (edit) => `(() => {
 const YOUTUBE_TV_BOX_TEXT = `(document.querySelector('ytlr-search-text-box') || {}).textContent || ''`;
 const YOUTUBE_TV_CLEAR_WAIT_MS = 1_500;
 
+// Inherited cursor: none on everything; a constructed stylesheet is not subject to the sites'
+// style-src CSP, with a <style> element as fallback.
+const HIDE_SYSTEM_CURSOR = `(() => {
+  const css = '*, *::before, *::after { cursor: none !important; }';
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  } catch {
+    const add = () => {
+      const style = document.createElement('style');
+      style.textContent = css;
+      (document.head || document.documentElement).appendChild(style);
+    };
+    if (document.documentElement) add();
+    else document.addEventListener('DOMContentLoaded', add, { once: true });
+  }
+})()`;
+
 export class TvController extends EventEmitter {
   #launcherUrl;
   #launcherOrigin;
   #overlayPath;
+  #hideSystemCursor;
   #log;
 
   #cdp = null;
@@ -151,8 +174,9 @@ export class TvController extends EventEmitter {
   #applyTimer = null;
   #titleTimer = null;
 
-  constructor({ launcherUrl, overlayPath, log = console.log }) {
+  constructor({ launcherUrl, overlayPath, hideSystemCursor = false, log = console.log }) {
     super();
+    this.#hideSystemCursor = hideSystemCursor;
     this.#launcherUrl = launcherUrl;
     this.#launcherOrigin = new URL(launcherUrl).origin;
     this.#overlayPath = overlayPath;
@@ -249,6 +273,11 @@ export class TvController extends EventEmitter {
     const send = (method, params) => cdp.send(method, params, sessionId);
     await Promise.all([send('Page.enable'), send('Runtime.enable')]);
     await send('Runtime.addBinding', { name: BINDING_NAME });
+
+    if (this.#hideSystemCursor) {
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: HIDE_SYSTEM_CURSOR });
+      await send('Runtime.evaluate', { expression: HIDE_SYSTEM_CURSOR }).catch(() => {});
+    }
 
     const source = await this.#readOverlay();
     if (source) {

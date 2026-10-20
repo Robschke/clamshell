@@ -27,6 +27,8 @@ as the remote. Everything runs locally, one Node process, no cloud.
   (logins persist, separate from the user's daily browser).
 - Chrome opens fullscreen on the external (HDMI) display when one is connected, otherwise on
   the built-in display. When an external display is plugged in later, the window moves there.
+- Outside dev mode the Mac's own mouse pointer is hidden on every TV page (an injected
+  `cursor: none !important` sheet in every frame); the remote's cursor is drawn by the overlay.
 - Dev mode (`TV_STREAM_WINDOWED=1`): no kiosk, normal 1280x720 window. Use it for all testing so
   the user's screen is never taken over.
 

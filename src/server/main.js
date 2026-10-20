@@ -11,6 +11,8 @@
 //   fullscreen on the target display), in windowed mode only after a display change or a Chrome
 //   (re)attach so a dev window the user moved stays where it is. Headless mode never places.
 // - caffeinate -w <pid> also exits on its own if this process dies without cleanup.
+// - The Mac's own mouse pointer is hidden on every TV page except in windowed mode, where the
+//   dev window is used with the real mouse.
 
 import { spawn } from 'node:child_process';
 import os from 'node:os';
@@ -50,7 +52,12 @@ caffeinate.on('error', (err) => log(`[tv-stream] caffeinate failed: ${err.messag
 
 // ---------------------------------------------------------------- http + ws
 
-const controller = new TvController({ launcherUrl: config.launcherUrl, overlayPath: config.overlayPath, log });
+const controller = new TvController({
+  launcherUrl: config.launcherUrl,
+  overlayPath: config.overlayPath,
+  hideSystemCursor: !config.windowed,
+  log,
+});
 const server = createHttpServer({ publicDir: config.publicDir, port: config.port, controller, log });
 const remoteSocket = attachRemoteSocket({ server, controller, log });
 
