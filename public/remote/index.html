@@ -1,0 +1,144 @@
+<!doctype html>
+<!--
+  Purpose: Phone remote web app (Fire TV style): D-pad or touchpad, media and volume buttons,
+           live keyboard and "open link" sheet, talking to the server over WebSocket /ws.
+  Depends on: /remote/remote.css, /remote/remote.js, /remote/manifest.webmanifest, /remote/icon.svg,
+              server WebSocket /ws and GET /api/apps (protocol in docs/architecture.md).
+  Used by: phones opening the remote URL from the TV's QR code (server redirects / to /remote/).
+  Notes: Icons are inline SVG so they render identically on every phone. The hidden typing input
+         is a real, focusable text field (not display:none) because iOS only opens the keyboard
+         for a focusable field focused inside a tap handler. Asset paths are absolute so the page
+         works at /remote and /remote/.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TV Remote">
+  <meta name="format-detection" content="telephone=no">
+  <title>TV Stream Remote</title>
+  <link rel="manifest" href="/remote/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/remote/icon.svg">
+  <link rel="apple-touch-icon" href="/remote/icon.svg">
+  <link rel="stylesheet" href="/remote/remote.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header">
+      <div class="header-row">
+        <h1 class="brand">TV Stream</h1>
+        <div class="segmented" id="modeSwitch" role="radiogroup" aria-label="Control mode" data-mode="dpad">
+          <span class="segmented-thumb" aria-hidden="true"></span>
+          <button type="button" class="segment" role="radio" aria-checked="true" data-mode="dpad">Remote</button>
+          <button type="button" class="segment" role="radio" aria-checked="false" data-mode="touchpad">Pad</button>
+        </div>
+        <span class="conn-dot" id="connDot" role="img" aria-label="Disconnected"></span>
+      </div>
+      <p class="now-playing" id="nowPlaying" aria-live="polite">Connecting…</p>
+    </header>
+
+    <main class="control-area" id="controlArea">
+      <!-- D-pad: a rotated 2x2 grid, so each grid cell becomes one wedge of the circle -->
+      <div class="dpad" id="dpad">
+        <div class="dpad-ring">
+          <button type="button" class="dpad-seg" data-key="up" data-repeat aria-label="Up">
+            <svg class="dpad-icon dpad-icon-up" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+          <button type="button" class="dpad-seg" data-key="right" data-repeat aria-label="Right">
+            <svg class="dpad-icon dpad-icon-right" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+          <button type="button" class="dpad-seg" data-key="left" data-repeat aria-label="Left">
+            <svg class="dpad-icon dpad-icon-left" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+          <button type="button" class="dpad-seg" data-key="down" data-repeat aria-label="Down">
+            <svg class="dpad-icon dpad-icon-down" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+        </div>
+        <button type="button" class="dpad-ok" data-key="ok" aria-label="OK">OK</button>
+      </div>
+
+      <div class="touchpad" id="touchpad" role="application" aria-label="Touchpad" hidden>
+        <p class="touchpad-hint">Move: one finger · Tap: click · Scroll: two fingers</p>
+      </div>
+    </main>
+
+    <section class="buttons" aria-label="Buttons">
+      <div class="btn-row">
+        <button type="button" class="btn" data-key="back" aria-label="Back">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+          <span class="btn-label">Back</span>
+        </button>
+        <button type="button" class="btn" data-key="home" aria-label="Home">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 10.5L12 3.5l8.5 7"/><path d="M5.5 9v11h4.5v-6h4v6h4.5V9"/></svg>
+          <span class="btn-label">Home</span>
+        </button>
+        <button type="button" class="btn" data-key="menu" aria-label="Menu">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg>
+        </button>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn" data-media="rewind" aria-label="Rewind">
+          <svg class="icon icon-filled" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 7l-7.5 5 7.5 5zM20.5 7L13 12l7.5 5z"/></svg>
+        </button>
+        <button type="button" class="btn" data-media="playpause" aria-label="Play or pause">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="fill" d="M3.5 6.5l8 5.5-8 5.5z"/><path d="M15.5 6.5v11M20 6.5v11"/></svg>
+        </button>
+        <button type="button" class="btn" data-media="forward" aria-label="Fast forward">
+          <svg class="icon icon-filled" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 7l7.5 5-7.5 5zM3.5 7l7.5 5-7.5 5z"/></svg>
+        </button>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn" data-media="volumeDown" data-repeat aria-label="Volume down">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="fill" d="M3.5 9.5h3l5-4v13l-5-4h-3z"/><path d="M15.5 12h5"/></svg>
+        </button>
+        <button type="button" class="btn" data-media="mute" aria-label="Mute">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="fill" d="M3.5 9.5h3l5-4v13l-5-4h-3z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/></svg>
+        </button>
+        <button type="button" class="btn" data-media="volumeUp" data-repeat aria-label="Volume up">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="fill" d="M3.5 9.5h3l5-4v13l-5-4h-3z"/><path d="M15.5 12h5M18 9.5v5"/></svg>
+        </button>
+      </div>
+      <div class="btn-row btn-row-wide">
+        <button type="button" class="btn" id="keyboardBtn" aria-label="Keyboard">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14.5h8"/></svg>
+          <span class="btn-label">Keyboard</span>
+        </button>
+        <button type="button" class="btn" id="linkBtn" aria-label="Open link">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 14a4.2 4.2 0 0 0 6 0l3.2-3.2a4.2 4.2 0 0 0-6-6L12 6"/><path d="M14 10a4.2 4.2 0 0 0-6 0l-3.2 3.2a4.2 4.2 0 0 0 6 6L12 18"/></svg>
+          <span class="btn-label">Link</span>
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Live typing: the bar sits above the iOS keyboard; the input inside is invisible but real -->
+  <div class="typing-bar floating" id="typingBar" hidden>
+    <input class="typing-input" id="typingInput" type="text" aria-label="Type on TV"
+           autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="send">
+    <span class="typing-label">Typing on TV…</span>
+    <button type="button" class="typing-done" id="typingDone">Done</button>
+  </div>
+
+  <!-- Link sheet -->
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <form class="sheet floating" id="linkSheet" autocomplete="off" novalidate aria-hidden="true">
+    <h2 class="sheet-title">Open a link on TV</h2>
+    <input class="sheet-input" id="linkInput" type="url" inputmode="url" placeholder="youtube.com/watch?v=…"
+           autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" autofocus
+           aria-label="Link">
+    <div class="sheet-actions">
+      <button type="button" class="sheet-btn" id="linkCancel">Cancel</button>
+      <button type="submit" class="sheet-btn sheet-btn-primary">Open on TV</button>
+    </div>
+  </form>
+
+  <div class="toast" id="toast" role="status" aria-live="assertive"></div>
+
+  <script src="/remote/remote.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    Purpose: App icon of the phone remote (home screen, manifest, favicon).
+    Depends on: nothing.
+    Used by: /remote/manifest.webmanifest, /remote/index.html (icon links).
+    Notes: Full-bleed square background so platforms that mask icons (rounded squares, circles)
+           never show transparent corners; the D-pad motif stays inside the central safe zone.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2030"/>
+      <stop offset="1" stop-color="#0b0d12"/>
+    </linearGradient>
+    <radialGradient id="ok" cx="0.5" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#6aa2ff"/>
+      <stop offset="1" stop-color="#3f7ff0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="150" fill="#262b38"/>
+  <g fill="none" stroke="#c9d1e0" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M232 154l24-24 24 24"/>
+    <path d="M232 358l24 24 24-24"/>
+    <path d="M154 232l-24 24 24 24"/>
+    <path d="M358 232l24 24-24 24"/>
+  </g>
+  <circle cx="256" cy="256" r="62" fill="url(#ok)"/>
+</svg>

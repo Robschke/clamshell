@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  Purpose: TV home screen (launcher) shown fullscreen on the HDMI display.
+  Depends on: /tv/tv.css, /tv/tv.js, server endpoints GET /api/apps, GET /api/info, POST /api/open.
+  Used by: src/server/chrome-launcher.js and tv-controller.js (navigate Chrome to /tv/).
+  Notes: Asset paths are absolute so the page works whether it is served at /tv or /tv/.
+         Tiles are rendered by tv.js; the markup only holds the static frame.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TV Stream</title>
+  <link rel="stylesheet" href="/tv/tv.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">TV Stream</h1>
+    <time class="clock" id="clock" aria-live="off">--:--</time>
+  </header>
+
+  <main class="stage">
+    <div class="tile-row" id="tiles" role="list" aria-label="Apps"></div>
+  </main>
+
+  <aside class="pairing" id="pairing" hidden>
+    <div class="pairing-text">
+      <p class="pairing-caption">Scan to use your phone as remote</p>
+      <p class="pairing-url" id="remoteUrl"></p>
+      <p class="pairing-url-ip" id="remoteUrlIp"></p>
+    </div>
+    <div class="pairing-qr" id="qr" aria-hidden="true"></div>
+  </aside>
+
+  <script src="/tv/tv.js"></script>
+</body>
+</html>

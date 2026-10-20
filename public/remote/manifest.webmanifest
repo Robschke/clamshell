@@ -1,0 +1,19 @@
+{
+  "name": "TV Stream Remote",
+  "short_name": "TV Remote",
+  "description": "Phone remote for the TV Stream home screen.",
+  "start_url": "/remote/",
+  "scope": "/remote/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    {
+      "src": "/remote/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

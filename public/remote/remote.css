@@ -1,0 +1,539 @@
+/*
+  Purpose: Styles for the phone remote: header with mode switch, D-pad or touchpad, button rows,
+           typing bar, link sheet and toast.
+  Depends on: markup in /remote/index.html, state classes set by /remote/remote.js
+              (is-pressed, is-open, is-touching, is-connected, data-mode).
+  Used by: /remote/index.html.
+  Notes: The page is a fixed, non-scrolling app shell (body is position: fixed) so iOS cannot
+         rubber-band or zoom it. The control area is a size container: the D-pad takes the
+         largest circle that fits whatever height is left after the header and the button rows,
+         which is how the layout fits an iPhone SE as well as a Pro Max without scrolling.
+         Pressed states use a class instead of :active because iOS Safari does not apply :active
+         reliably on touch.
+*/
+
+:root {
+  --bg: #0b0d12;
+  --surface: #14171f;
+  --btn: #1e222c;
+  --btn-pressed: #353b4a;
+  --line: rgba(255, 255, 255, 0.06);
+  --text: #eef1f6;
+  --muted: #8a92a3;
+  --accent: #4d8dff;
+  --green: #35d07f;
+  --red: #ff5a5f;
+  --radius: 16px;
+  --row-h: clamp(56px, 7.4vh, 68px);
+  --gap: 10px;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.app {
+  height: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding:
+    calc(env(safe-area-inset-top) + 10px)
+    calc(env(safe-area-inset-right) + 16px)
+    calc(env(safe-area-inset-bottom) + 14px)
+    calc(env(safe-area-inset-left) + 16px);
+}
+
+/* ---- Header ---- */
+
+.header {
+  flex: none;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.brand {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.segmented {
+  position: relative;
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.segmented-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 9px;
+  background: #2c3240;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.segmented[data-mode="touchpad"] .segmented-thumb {
+  transform: translateX(100%);
+}
+
+.segment {
+  position: relative;
+  z-index: 1;
+  min-width: 70px;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: color 200ms;
+}
+
+.segment[aria-checked="true"] {
+  color: var(--text);
+}
+
+.conn-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 3px rgba(255, 90, 95, 0.18);
+  transition: background 200ms, box-shadow 200ms;
+}
+
+.conn-dot.is-connected {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(53, 208, 127, 0.18);
+}
+
+.now-playing {
+  margin: 4px 0 0;
+  min-height: 18px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Control area: D-pad or touchpad ---- */
+
+.control-area {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+.dpad {
+  --d: min(78vw, 300px);
+  --d: min(100cqw, 100cqh, 340px);
+  position: relative;
+  width: var(--d);
+  height: var(--d);
+}
+
+.dpad-ring {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  border-radius: 50%;
+  overflow: hidden;
+  transform: rotate(45deg);
+  background: var(--bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.dpad-seg {
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: var(--btn);
+  color: var(--text);
+  transition: background 90ms;
+}
+
+.dpad-seg.is-pressed {
+  background: var(--btn-pressed);
+}
+
+.dpad-icon {
+  width: calc(var(--d) * 0.13);
+  height: calc(var(--d) * 0.13);
+  min-width: 22px;
+  min-height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+}
+
+/* The ring is rotated 45deg; each icon is rotated back and then towards its direction. */
+.dpad-icon-up { transform: rotate(-45deg); }
+.dpad-icon-right { transform: rotate(45deg); }
+.dpad-icon-down { transform: rotate(135deg); }
+.dpad-icon-left { transform: rotate(-135deg); }
+
+.dpad-ok {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42%;
+  height: 42%;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #353b49 0%, #272c37 100%);
+  box-shadow: 0 0 0 5px var(--bg), 0 4px 14px rgba(0, 0, 0, 0.45);
+  font-size: clamp(16px, calc(var(--d) * 0.07), 22px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: background 90ms, transform 90ms;
+}
+
+.dpad-ok.is-pressed {
+  background: radial-gradient(circle at 50% 35%, #46506a 0%, #343b4c 100%);
+  transform: translate(-50%, -50%) scale(0.96);
+}
+
+.touchpad {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(77, 141, 255, 0.07), rgba(77, 141, 255, 0) 70%),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  touch-action: none;
+  transition: box-shadow 150ms, background-color 150ms;
+}
+
+.touchpad.is-touching {
+  background-color: #171b25;
+  box-shadow: inset 0 0 0 1px rgba(77, 141, 255, 0.35);
+}
+
+.touchpad-hint {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* ---- Button rows ---- */
+
+.buttons {
+  flex: none;
+  display: grid;
+  gap: var(--gap);
+}
+
+.btn-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+
+.btn-row-wide {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.btn {
+  height: var(--row-h);
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--btn);
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 90ms, transform 90ms;
+}
+
+.btn.is-pressed {
+  background: var(--btn-pressed);
+  transform: scale(0.96);
+}
+
+.icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon .fill,
+.icon-filled path {
+  fill: currentColor;
+}
+
+.btn-label {
+  white-space: nowrap;
+}
+
+/* ---- Floating layers (typing bar and link sheet follow the visual viewport) ---- */
+
+.floating {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateY(var(--vv-shift, 0px));
+}
+
+.typing-bar {
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px calc(env(safe-area-inset-right) + 16px) 10px calc(env(safe-area-inset-left) + 16px);
+  background: rgba(28, 32, 42, 0.97);
+  box-shadow: 0 -1px 0 var(--line), 0 -8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Invisible but real: focusable and 16px so iOS neither refuses focus nor zooms in. */
+.typing-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.typing-label {
+  flex: 1 1 auto;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.typing-done {
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms;
+}
+
+.sheet-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sheet {
+  z-index: 41;
+  margin: 0;
+  padding: 20px calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px);
+  border-radius: 20px 20px 0 0;
+  background: #171a23;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.45);
+  translate: 0 110%;
+  visibility: hidden;
+  transition: translate 240ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 240ms;
+}
+
+.sheet.is-open {
+  translate: 0 0;
+  visibility: visible;
+  transition: translate 240ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s;
+}
+
+.sheet-title {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sheet-input {
+  display: block;
+  width: 100%;
+  height: 52px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: #0f1117;
+  color: var(--text);
+  font: inherit;
+  font-size: 17px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sheet-input:focus {
+  border-color: var(--accent);
+}
+
+.sheet-input.is-invalid {
+  border-color: var(--red);
+}
+
+.sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sheet-btn {
+  height: 52px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--btn);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sheet-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sheet-btn.is-pressed {
+  filter: brightness(1.2);
+}
+
+/* ---- Toast ---- */
+
+.toast {
+  position: fixed;
+  z-index: 50;
+  top: calc(env(safe-area-inset-top) + 64px);
+  left: 50%;
+  max-width: calc(100% - 40px);
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(44, 49, 62, 0.97);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -8px);
+  transition: opacity 200ms, transform 200ms;
+}
+
+.toast.is-error {
+  background: rgba(120, 32, 38, 0.97);
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Short screens (iPhone SE in Safari with toolbars): tighter spacing, touch targets stay >= 56px */
+@media (max-height: 620px) {
+  :root {
+    --gap: 8px;
+  }
+  .app {
+    gap: 8px;
+    padding-top: calc(env(safe-area-inset-top) + 6px);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 10px);
+  }
+}
