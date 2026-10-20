@@ -180,7 +180,10 @@ Behavior rules for the overlay:
   volume indicator for 1.5 s.
 - Quick menu: centered panel, three items, navigable with up/down/ok while open (handleKey must
   route to the menu while it is open), `back` closes it.
-- Cursor: a visible arrow drawn at (x, y), auto-hides after 4 s idle in touchpad mode.
+- Cursor (iPad style): a small translucent grey circle (1.8% of the viewport height, min 14 px)
+  centered on (x, y). Over a clickable element (candidate set, at most 35% x 25% of the viewport)
+  it morphs into a soft rounded highlight around that element, animating for 170 ms on the
+  change. Auto-hides after 4 s idle in touchpad mode.
 - All overlay DOM lives in one closed shadow root on a host element, so site CSS cannot break it.
 - The overlay must survive SPA navigations (sites replacing the DOM) and must never throw into
   the page.

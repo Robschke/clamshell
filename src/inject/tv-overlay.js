@@ -1,6 +1,6 @@
 /*
  * Purpose: TV overlay injected into every page: highlight navigation, player mode, media keys,
- *          fake cursor and the quick menu, exposed as window.__tvStream.
+ *          iPad-style cursor and the quick menu, exposed as window.__tvStream.
  *
  * Depends on: nothing at runtime (classic script, no imports, no network). The interface and
  *             behavior follow docs/architecture.md ("Overlay interface", "Behavior rules for the
@@ -56,6 +56,11 @@
   const VOLUME_VISIBLE_MS = 1500;
   const TOAST_VISIBLE_MS = 1100;
   const CURSOR_IDLE_MS = 4000;
+  const CURSOR_SIZE_VH = 1.8;
+  const CURSOR_MIN_PX = 14;
+  const CURSOR_MORPH_MS = 170;
+  const MORPH_MAX_WIDTH = 0.35; // share of the viewport; larger elements keep the circle
+  const MORPH_MAX_HEIGHT = 0.25;
   const RING_MOVE_MS = 220;
   const TRACK_IDLE_FRAMES = 40;
   const HEALTH_CHECK_MS = 1000;
@@ -118,6 +123,8 @@
     menuEnabled: [true, false, true],
     cursor: { x: 0, y: 0, known: false },
     cursorTimer: 0,
+    cursorTarget: null,
+    cursorAnimTimer: 0,
     volumeTimer: 0,
     toastTimer: 0,
     pseudoFullscreen: null,
@@ -390,13 +397,40 @@
 
     .cursor {
       position: fixed; left: 0; top: 0;
-      width: max(36px, 4.6vh); height: max(36px, 4.6vh);
-      margin: -1px 0 0 -1px;
-      opacity: 0; transition: opacity 250ms ease;
-      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+      box-sizing: border-box;
+      border-radius: 999px;
+      background: rgba(128, 132, 142, 0.6);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28), 0 2px 10px rgba(0, 0, 0, 0.35);
+      -webkit-backdrop-filter: saturate(1.6) blur(2px);
+      backdrop-filter: saturate(1.6) blur(2px);
+      opacity: 0;
+      will-change: transform;
+      transition:
+        opacity 180ms ease,
+        width 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        height 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        border-radius 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 170ms ease,
+        box-shadow 170ms ease;
     }
-    .cursor.visible { opacity: 1; transition: opacity 80ms ease; }
-    .cursor path { fill: #fff; stroke: #0b0d12; stroke-width: 1.6; stroke-linejoin: round; }
+    .cursor.visible { opacity: 1; }
+    .cursor.animating {
+      transition:
+        opacity 180ms ease,
+        transform 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        width 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        height 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        border-radius 170ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 170ms ease,
+        box-shadow 170ms ease;
+    }
+    .cursor.morph {
+      background: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24), 0 8px 28px rgba(0, 0, 0, 0.35);
+      /* The highlight covers the element itself, so no blur that would smear its label. */
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
   `;
 
   function applyStyles(shadow) {
@@ -470,11 +504,7 @@
   }
 
   function buildCursor() {
-    const svg = createSvg('svg', { viewBox: '0 0 24 24', class: 'cursor', 'aria-hidden': 'true' });
-    svg.appendChild(createSvg('path', {
-      d: 'M2 1.5 L2 19.6 L6.7 15.4 L9.7 22.3 L13 20.9 L10.1 14.2 L16.4 14.2 Z',
-    }));
-    return svg;
+    return createEl('div', 'cursor');
   }
 
   function buildHost() {
@@ -715,6 +745,8 @@
 
   const onViewportChange = safe(function onViewportChange() {
     if (state.ringWanted) startTracking();
+    // Keeps a morphed cursor on its element while the page scrolls under it.
+    if (state.mode === 'touchpad' && ui.cursor && ui.cursor.classList.contains('visible')) placeCursor();
   });
 
   /** Follows focus the site moves itself (e.g. a dialog focusing its first button). */
@@ -1473,9 +1505,75 @@
     if (ui.cursor) ui.cursor.classList.remove('visible');
   }
 
+  // iPad-style pointer: a small translucent circle that morphs into a soft highlight around the
+  // clickable element under it. Position and size change instantly while moving; the transform
+  // only animates for 170 ms when the pointer snaps onto or off an element.
+
+  /** Topmost element at (x, y), descending into open shadow roots. The overlay host has
+   *  pointer-events none, so hit testing sees the page through it. */
+  function deepElementFromPoint(x, y) {
+    let el = document.elementFromPoint(x, y);
+    while (el && el.shadowRoot && el !== ui.host) {
+      const inner = el.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    return el;
+  }
+
+  function closestCandidate(node) {
+    while (node) {
+      if (node.nodeType === 1 && node !== ui.host && node.matches(CANDIDATE_SELECTOR)) return node;
+      node = node.parentElement || (node.getRootNode && node.getRootNode().host) || null;
+    }
+    return null;
+  }
+
+  function morphRect(x, y) {
+    const target = closestCandidate(deepElementFromPoint(x, y));
+    if (!target || isDisabled(target)) return null;
+    const rect = target.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return null;
+    if (rect.width > window.innerWidth * MORPH_MAX_WIDTH || rect.height > window.innerHeight * MORPH_MAX_HEIGHT) return null;
+    return { target, rect };
+  }
+
+  function placeCursor() {
+    const { x, y } = state.cursor;
+    const hit = morphRect(x, y);
+    const target = hit ? hit.target : null;
+    if (target !== state.cursorTarget) {
+      state.cursorTarget = target;
+      ui.cursor.classList.add('animating');
+      timers.clearTimeout(state.cursorAnimTimer);
+      state.cursorAnimTimer = timers.setTimeout(safe(() => ui.cursor.classList.remove('animating')), CURSOR_MORPH_MS);
+    }
+    ui.cursor.classList.toggle('morph', Boolean(hit));
+    let left, top, width, height, radius;
+    if (hit) {
+      const pad = Math.max(6, window.innerHeight * 0.006);
+      left = hit.rect.left - pad;
+      top = hit.rect.top - pad;
+      width = hit.rect.width + pad * 2;
+      height = hit.rect.height + pad * 2;
+      radius = Math.min(Math.max(10, window.innerHeight * 0.012), height / 2);
+    } else {
+      const d = Math.max(CURSOR_MIN_PX, window.innerHeight * CURSOR_SIZE_VH / 100);
+      left = x - d / 2;
+      top = y - d / 2;
+      width = height = d;
+      radius = d / 2;
+    }
+    const style = ui.cursor.style;
+    style.transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
+    style.width = width + 'px';
+    style.height = height + 'px';
+    style.borderRadius = radius + 'px';
+  }
+
   function showCursor() {
     if (!state.cursor.known || !ensureAttached()) return;
-    ui.cursor.style.transform = 'translate3d(' + state.cursor.x + 'px,' + state.cursor.y + 'px,0)';
+    placeCursor();
     if (!ui.cursor.classList.contains('visible')) raiseIfCovered();
     ui.cursor.classList.add('visible');
     timers.clearTimeout(state.cursorTimer);
