@@ -12,7 +12,8 @@
       iOS only opens the on-screen keyboard when focus() runs inside a click/touchend handler.
     - Touchpad deltas are accumulated per pointer event (with acceleration) and flushed at most
       once per animation frame, so the server never receives more than ~60 moves per second.
-    - The touchpad scroll strips (right and bottom) are deliberately not drawn on the pad.
+    - Flicks are classified at liftoff (short, fast swipe) the way phones detect a fling; the
+      cursor moves during the swipe and the server puts it back, so slow moves stay precise.
     - Typing is diffed against the previous input value (common prefix), which turns iOS
       autocorrect and predictive replacements into backspaces plus an insert.
 */
@@ -26,8 +27,11 @@
   var REPEAT_DELAY_MS = 400;
   var REPEAT_INTERVAL_MS = 120;
   var POINTER_BASE_GAIN = 2;
-  var SCROLL_GAIN = 2.2;
-  var SCROLL_STRIP_FRACTION = 0.15;
+  var FLICK_MAX_MS = 300;
+  var FLICK_MIN_TRAVEL_PX = 15;
+  var FLICK_MIN_SPEED = 0.4; // px/ms at liftoff
+  var FLICK_SAMPLE_MS = 80;
+  var FLICK_REST_MS = 60;
   var TAP_MAX_MS = 280;
   var TAP_MAX_TRAVEL_PX = 10;
   var TYPING_RESET_LENGTH = 200;
@@ -327,13 +331,11 @@
 
   // ================= Touchpad =================
 
-  // The zone is chosen where the finger lands and kept until it lifts: the right strip (full
-  // height) scrolls vertically, the bottom strip scrolls horizontally, the rest moves the cursor.
-  // Further fingers are ignored. A cursor gesture reports touch start and end so the server can
-  // auto-scroll while the cursor rests at an edge of the TV page.
-  var activePointer = null; // { id, zone, x, y, t, startT, travel }
+  // One surface, one finger (further fingers are ignored). The cursor follows the finger; a short
+  // swipe that is still fast when the finger lifts is a flick: the server puts the cursor back to
+  // where the swipe started and glides the page, like scrolling on a phone.
+  var activePointer = null; // { id, x, y, t, startT, travel, samples }
   var pendingMove = { dx: 0, dy: 0 };
-  var pendingScroll = { dx: 0, dy: 0 };
   var frameRequested = false;
 
   // Acceleration: speed in px/ms. Slow moves get less than the base gain (precise), fast moves
@@ -341,13 +343,6 @@
   function pointerGain(speed) {
     var factor = Math.min(3.2, Math.max(0.55, 0.55 + 0.9 * speed));
     return POINTER_BASE_GAIN * factor;
-  }
-
-  function touchpadZone(event) {
-    var rect = touchpad.getBoundingClientRect();
-    if (event.clientX >= rect.right - rect.width * SCROLL_STRIP_FRACTION) return "scrollY";
-    if (event.clientY >= rect.bottom - rect.height * SCROLL_STRIP_FRACTION) return "scrollX";
-    return "cursor";
   }
 
   function round2(n) {
@@ -366,17 +361,26 @@
       send({ type: "pointer", action: "move", dx: round2(pendingMove.dx), dy: round2(pendingMove.dy) });
       pendingMove.dx = pendingMove.dy = 0;
     }
-    if (pendingScroll.dx || pendingScroll.dy) {
-      send({ type: "pointer", action: "scroll", dx: round2(pendingScroll.dx), dy: round2(pendingScroll.dy) });
-      pendingScroll.dx = pendingScroll.dy = 0;
+  }
+
+  // Finger velocity (px/ms) over roughly the last FLICK_SAMPLE_MS before liftoff, measured from
+  // the newest sample older than that window (so sparse move events still give two points); zero
+  // when the finger had already come to rest.
+  function releaseVelocity(p, upTime) {
+    if (upTime - p.t > FLICK_REST_MS || p.samples.length < 2) return { vx: 0, vy: 0 };
+    var last = p.samples[p.samples.length - 1];
+    var first = p.samples[0];
+    for (var i = p.samples.length - 2; i >= 0; i--) {
+      first = p.samples[i];
+      if (upTime - first.t > FLICK_SAMPLE_MS) break;
     }
+    var dt = Math.max(1, last.t - first.t);
+    return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
   }
 
   function resetTouchpad() {
-    if (activePointer && activePointer.zone === "cursor") send({ type: "pointer", action: "touch", active: false });
     activePointer = null;
     pendingMove.dx = pendingMove.dy = 0;
-    pendingScroll.dx = pendingScroll.dy = 0;
     touchpad.classList.remove("is-touching");
   }
 
@@ -386,14 +390,15 @@
     try { touchpad.setPointerCapture(event.pointerId); } catch (err) { /* not capturable */ }
     activePointer = {
       id: event.pointerId,
-      zone: touchpadZone(event),
       x: event.clientX,
       y: event.clientY,
       t: event.timeStamp,
       startT: event.timeStamp,
-      travel: 0
+      travel: 0,
+      samples: [{ t: event.timeStamp, x: event.clientX, y: event.clientY }]
     };
-    if (activePointer.zone === "cursor") send({ type: "pointer", action: "touch", active: true });
+    // Marks the cursor position a flick returns to, and stops a running glide.
+    send({ type: "pointer", action: "start" });
     touchpad.classList.add("is-touching");
   });
 
@@ -408,17 +413,12 @@
     p.t = event.timeStamp;
     if (!dx && !dy) return;
     p.travel += Math.hypot(dx, dy);
+    p.samples.push({ t: event.timeStamp, x: event.clientX, y: event.clientY });
+    if (p.samples.length > 12) p.samples.shift();
 
-    if (p.zone === "cursor") {
-      var gain = pointerGain(Math.hypot(dx, dy) / dt);
-      pendingMove.dx += dx * gain;
-      pendingMove.dy += dy * gain;
-    } else if (p.zone === "scrollY") {
-      // Scrollbar direction: finger down shows content further down.
-      pendingScroll.dy += dy * SCROLL_GAIN;
-    } else {
-      pendingScroll.dx += dx * SCROLL_GAIN;
-    }
+    var gain = pointerGain(Math.hypot(dx, dy) / dt);
+    pendingMove.dx += dx * gain;
+    pendingMove.dy += dy * gain;
     requestFlush();
   });
 
@@ -427,15 +427,18 @@
     if (!p || event.pointerId !== p.id) return;
     activePointer = null;
     touchpad.classList.remove("is-touching");
-    flushPointer(); // pending moves go first so a click or touch end lands where the cursor is
-    if (p.zone === "cursor") send({ type: "pointer", action: "touch", active: false });
-    if (
-      event.type === "pointerup" &&
-      p.travel < TAP_MAX_TRAVEL_PX &&
-      event.timeStamp - p.startT < TAP_MAX_MS
-    ) {
+    flushPointer(); // pending moves go first so a click lands where the cursor is
+    if (event.type !== "pointerup") return;
+
+    var duration = event.timeStamp - p.startT;
+    if (p.travel < TAP_MAX_TRAVEL_PX && duration < TAP_MAX_MS) {
       haptic();
       send({ type: "pointer", action: "click" });
+      return;
+    }
+    var v = releaseVelocity(p, event.timeStamp);
+    if (duration <= FLICK_MAX_MS && p.travel >= FLICK_MIN_TRAVEL_PX && Math.hypot(v.vx, v.vy) >= FLICK_MIN_SPEED) {
+      send({ type: "pointer", action: "flick", vx: round2(v.vx), vy: round2(v.vy) });
     }
   }
 

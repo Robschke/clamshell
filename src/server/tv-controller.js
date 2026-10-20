@@ -15,10 +15,11 @@
 //   before every navigation the controller starts. A page that reaches youtube.com/tv by itself
 //   (without the TV user agent) gets the override plus one reload.
 // - The overlay source is re-read on every attach so edits apply after a Chrome reconnect.
-// - Edge auto-scroll: while a finger moves the cursor on the remote touchpad and the cursor sits
-//   exactly on a viewport border, mouse wheel events in that direction are sent at a steady
-//   rate. Chrome routes them to the scrollable element under the cursor, so horizontal rows
-//   scroll when they can and the page scrolls otherwise. Lifting the finger stops it.
+// - Flick scrolling: the remote marks each touchpad gesture start and reports a flick with the
+//   finger's liftoff velocity. The cursor returns to the gesture start and the page glides with
+//   phone-like deceleration through wheel events at the cursor, locked to the dominant axis.
+//   Chrome routes them to the scrollable element under the cursor (a sideways row or the page).
+//   A new touch stops the glide, and a tap that only stopped a glide does not click.
 
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
@@ -41,8 +42,11 @@ const MAX_QUEUE = 40;
 const STATE_DEBOUNCE_MS = 60;
 const APPLY_DEBOUNCE_MS = 120;
 const VIEWPORT_REFRESH_MS = 3_000;
-const EDGE_SCROLL_INTERVAL_MS = 50;
-const EDGE_SCROLL_STEP_PX = 30;
+const GLIDE_FRAME_MS = 16;
+const GLIDE_GAIN = 3; // TV px per phone px
+const GLIDE_MAX_SPEED = 10; // TV px/ms
+const GLIDE_DECAY_PER_MS = 0.997;
+const GLIDE_MIN_SPEED = 0.05; // TV px/ms, the glide ends below this
 
 const KEYS = {
   up: { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
@@ -130,9 +134,9 @@ export class TvController extends EventEmitter {
   #cursor = { x: 640, y: 360 };
   #moveDirty = false;
   #moveInFlight = false;
-  #touching = false;
-  #edgeScrollTimer = null;
-  #edgeScrollInFlight = false;
+  #gestureStart = null;
+  #glide = null; // { vx, vy, at, timer, carryX, carryY, inFlight }
+  #swallowClick = false;
 
   #queue = Promise.resolve();
   #queued = 0;
@@ -216,7 +220,7 @@ export class TvController extends EventEmitter {
     clearTimeout(this.#applyTimer);
     clearTimeout(this.#titleTimer);
     clearTimeout(this.#stateTimer);
-    this.#setTouching(false);
+    this.#stopGlide();
     this.#cdp?.close();
   }
 
@@ -419,7 +423,8 @@ export class TvController extends EventEmitter {
   async handle(message) {
     if (message.type === 'mode') return this.setMode(message.mode);
     if (message.type === 'pointer' && message.action === 'move') return this.#pointerMove(message.dx, message.dy);
-    if (message.type === 'pointer' && message.action === 'touch') return this.#setTouching(message.active);
+    if (message.type === 'pointer' && message.action === 'start') return this.#gestureBegin();
+    if (message.type === 'pointer' && message.action === 'flick') return this.#flick(message.vx, message.vy);
     this.#requireConnected();
     return this.#enqueue(() => this.#run(message));
   }
@@ -587,6 +592,10 @@ export class TvController extends EventEmitter {
   }
 
   async #pointerClick() {
+    if (this.#swallowClick) {
+      this.#swallowClick = false;
+      return;
+    }
     const { x, y } = this.#cursor;
     const base = { x, y, button: 'left', clickCount: 1 };
     await this.#page('Input.dispatchMouseEvent', { ...base, type: 'mousePressed', buttons: 1 }, INPUT_TIMEOUT_MS);
@@ -598,35 +607,70 @@ export class TvController extends EventEmitter {
     await this.#page('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: dx, deltaY: dy }, INPUT_TIMEOUT_MS);
   }
 
-  #setTouching(active) {
-    this.#touching = active;
-    if (active && !this.#edgeScrollTimer) {
-      this.#edgeScrollTimer = setInterval(() => this.#edgeScrollTick(), EDGE_SCROLL_INTERVAL_MS);
-    } else if (!active && this.#edgeScrollTimer) {
-      clearInterval(this.#edgeScrollTimer);
-      this.#edgeScrollTimer = null;
+  #gestureBegin() {
+    this.#swallowClick = Boolean(this.#glide);
+    this.#stopGlide();
+    this.#gestureStart = { ...this.#cursor };
+  }
+
+  #flick(vx, vy) {
+    if (!this.connected) return;
+    if (this.#gestureStart) {
+      this.#cursor = this.#clampToViewport(this.#gestureStart.x, this.#gestureStart.y);
+      this.#moveDirty = true;
+      this.#flushMove();
     }
+    // Phone direction: content follows the finger, so a flick up scrolls down.
+    const horizontal = Math.abs(vx) > Math.abs(vy);
+    const clamp = (v) => Math.max(-GLIDE_MAX_SPEED, Math.min(GLIDE_MAX_SPEED, -v * GLIDE_GAIN));
+    this.#stopGlide();
+    this.#glide = {
+      vx: horizontal ? clamp(vx) : 0,
+      vy: horizontal ? 0 : clamp(vy),
+      at: Date.now(),
+      carryX: 0,
+      carryY: 0,
+      inFlight: false,
+      timer: setInterval(() => this.#glideTick(), GLIDE_FRAME_MS),
+    };
   }
 
-  // Direction of the viewport border the cursor sits on, as wheel deltas (0 when not on a border).
-  #edgeScrollDelta() {
-    const { width, height } = this.#viewport;
-    const { x, y } = this.#cursor;
-    const axis = (pos, max) => (pos <= 0 ? -EDGE_SCROLL_STEP_PX : pos >= max - 1 ? EDGE_SCROLL_STEP_PX : 0);
-    return { dx: axis(x, width), dy: axis(y, height) };
+  #stopGlide() {
+    if (!this.#glide) return;
+    clearInterval(this.#glide.timer);
+    this.#glide = null;
   }
 
-  async #edgeScrollTick() {
-    if (!this.#touching || this.#edgeScrollInFlight || !this.connected) return;
-    const { dx, dy } = this.#edgeScrollDelta();
+  // Advances the glide by the elapsed time. Distance accumulates while a wheel event is in flight
+  // and goes out with the next one, so a slow page does not lose scroll distance.
+  async #glideTick() {
+    const glide = this.#glide;
+    if (!glide) return;
+    const now = Date.now();
+    const dt = now - glide.at;
+    glide.at = now;
+    const decay = GLIDE_DECAY_PER_MS ** dt;
+    glide.carryX += glide.vx * dt;
+    glide.carryY += glide.vy * dt;
+    glide.vx *= decay;
+    glide.vy *= decay;
+    if (Math.hypot(glide.vx, glide.vy) < GLIDE_MIN_SPEED || !this.connected) {
+      this.#stopGlide();
+      return;
+    }
+    if (glide.inFlight) return;
+    const dx = Math.round(glide.carryX);
+    const dy = Math.round(glide.carryY);
     if (!dx && !dy) return;
-    this.#edgeScrollInFlight = true;
+    glide.carryX -= dx;
+    glide.carryY -= dy;
+    glide.inFlight = true;
     try {
       await this.#pointerScroll(dx, dy);
     } catch (err) {
-      this.#logCdp('edge scroll', err);
+      this.#logCdp('glide', err);
     } finally {
-      this.#edgeScrollInFlight = false;
+      glide.inFlight = false;
     }
   }
 
