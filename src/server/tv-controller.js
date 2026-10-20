@@ -70,6 +70,37 @@ const VOLUME_FALLBACK = (action) => `(() => {
   return true;
 })()`;
 
+// YouTube TV has no text field, only its own on-screen keyboard. Key events cover letters and
+// digits but lose or misread characters such as umlauts, "-" or "&" (it turns key codes back into
+// characters, and some codes are arrows or Delete). Replacing the #/search?q= hash sets any text,
+// opens search from every YouTube screen and adds no history entry.
+// The query is tracked on window next to the hash it produced; with any other hash it starts from
+// that hash's q. The search box itself is never parsed for text: when empty it shows a localized
+// placeholder ("Search", "Suche") that is indistinguishable from typed text without relying on
+// YouTube's obfuscated class names.
+const YOUTUBE_TV_EDIT = (edit) => `(() => {
+  const last = window.__tvStreamYtQuery;
+  const onSearch = location.hash.startsWith('#/search');
+  const hashQuery = () => new URLSearchParams(location.hash.split('?')[1] || '').get('q') || '';
+  const current = last && last.hash === location.hash ? last.query : (onSearch ? hashQuery() : '');
+  const edit = ${JSON.stringify(edit)};
+  const query = edit.insert !== undefined ? current + edit.insert : [...current].slice(0, -1).join('');
+  if (!query) {
+    // YouTube ignores an empty or blank q and keeps the old text, so the server clears the box
+    // with real Backspace presses once it shows exactly the text being deleted.
+    window.__tvStreamYtQuery = { query: '', hash: location.hash };
+    return { clear: current };
+  }
+  let hash = '#/search?q=' + encodeURIComponent(query);
+  // An unchanged hash fires no hashchange, so the box would keep showing stale text.
+  if (hash === location.hash) hash += '&tvs=' + Date.now();
+  location.replace(location.origin + location.pathname + location.search + hash);
+  window.__tvStreamYtQuery = { query, hash: location.hash };
+  return {};
+})()`;
+const YOUTUBE_TV_BOX_TEXT = `(document.querySelector('ytlr-search-text-box') || {}).textContent || ''`;
+const YOUTUBE_TV_CLEAR_WAIT_MS = 1_500;
+
 export class TvController extends EventEmitter {
   #launcherUrl;
   #launcherOrigin;
@@ -403,6 +434,8 @@ export class TvController extends EventEmitter {
         if (message.action === 'click') return this.#pointerClick();
         return this.#pointerScroll(message.dx, message.dy);
       case 'text':
+        if (message.action === 'insert' && this.#isYouTubeTv()) return this.#youtubeTvEdit({ insert: message.text });
+        if (message.action === 'backspace' && this.#isYouTubeTv()) return this.#youtubeTvEdit({ backspace: true });
         if (message.action === 'insert') return this.#page('Input.insertText', { text: message.text }, INPUT_TIMEOUT_MS);
         return this.#pressKey(message.action === 'enter' ? KEYS.enter : KEYS.backspace);
       case 'open':
@@ -500,6 +533,24 @@ export class TvController extends EventEmitter {
         }
         return undefined;
     }
+  }
+
+  // Edits the YouTube TV search term by replacing the #/search?q= hash in place.
+  async #youtubeTvEdit(edit) {
+    const evaluate = async (expression) =>
+      (await this.#page('Runtime.evaluate', { expression, returnByValue: true }, OVERLAY_TIMEOUT_MS)).result?.value;
+    const result = await evaluate(YOUTUBE_TV_EDIT(edit));
+    if (!result?.clear) return;
+    // Wait until the box shows exactly the text being deleted, then remove it key by key. A box
+    // that never matches is left alone: one Backspace too many is Back in YouTube TV.
+    const deadline = Date.now() + YOUTUBE_TV_CLEAR_WAIT_MS;
+    let text = await evaluate(YOUTUBE_TV_BOX_TEXT);
+    while (text !== result.clear && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      text = await evaluate(YOUTUBE_TV_BOX_TEXT);
+    }
+    if (text !== result.clear) return;
+    for (let i = [...text].length; i > 0; i--) await this.#pressKey(KEYS.backspace);
   }
 
   #isYouTubeTv() {
