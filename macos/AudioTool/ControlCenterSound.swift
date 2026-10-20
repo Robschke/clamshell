@@ -60,10 +60,16 @@ enum ControlCenterSound {
         guard let app = controlCenter(), let menuItem = controlCenterMenuItem(app) else {
             throw ToolError("Control Center is not available")
         }
+        // Opening Control Center from its menu bar item reveals the menu bar over the fullscreen TV
+        // window, and it stays visible after closing until the app in front takes the screen back.
+        let previousApp = NSWorkspace.shared.frontmostApplication
         guard openControlCenter(app, menuItem) else {
             throw ToolError("Control Center did not open, please try again")
         }
-        defer { closeControlCenter(app, menuItem) }
+        defer {
+            closeControlCenter(app, menuItem)
+            restoreFront(previousApp)
+        }
 
         // The tile is in the accessibility tree before Control Center finishes opening, and a press
         // during that animation is ignored, so wait for it to settle and press again if needed.
@@ -108,6 +114,14 @@ enum ControlCenterSound {
         if waitFor(timeout: 1, { !isOpen(app) }) { return }
         AXUIElementPerformAction(menuItem, kAXPressAction as CFString)
         _ = waitFor(timeout: 1) { !isOpen(app) }
+    }
+
+    /// Gives the screen back to the app that was in front (normally the fullscreen TV window), which
+    /// hides the menu bar again.
+    private static func restoreFront(_ previous: NSRunningApplication?) {
+        guard let previous, !previous.isTerminated, previous.bundleIdentifier != "com.apple.controlcenter" else { return }
+        previous.activate()
+        _ = waitFor(timeout: 1) { NSWorkspace.shared.frontmostApplication?.processIdentifier == previous.processIdentifier }
     }
 
     private static func postEscape() {
