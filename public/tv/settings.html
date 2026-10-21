@@ -1,0 +1,79 @@
+<!doctype html>
+<!--
+  Purpose: TV settings page, opened from the gear on the home screen: a sidebar of sections on the
+           left, the active section's panel on the right. The first section is "Services".
+  Depends on: /tv/base.css, /tv/settings.css, /tv/settings.js, server endpoints GET /api/settings,
+              POST /api/settings/services, PATCH and DELETE /api/settings/services/<id>.
+  Used by: /tv/index.html (the settings gear) and Chrome on the TV.
+  Notes: The page lives under /tv, so the server treats it as a "native" page and sends real
+         arrow, Enter and Escape (Back) key events. A new section is a nav entry rendered by
+         settings.js plus a <section class="panel" data-section="..."> here.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Clamshell Settings</title>
+  <link rel="stylesheet" href="/tv/base.css">
+  <link rel="stylesheet" href="/tv/settings.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">Settings</h1>
+  </header>
+
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Settings sections">
+      <div class="nav-sections" id="navSections"></div>
+      <button type="button" class="nav-item nav-back" id="backBtn" data-focusable>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
+        <span>Back</span>
+      </button>
+    </nav>
+
+    <main class="settings-content" id="content">
+      <section class="panel" data-section="services" hidden>
+        <div class="panel-view" id="serviceListView">
+          <h2 class="panel-title">Services</h2>
+          <p class="panel-note">The tiles on the home screen. Built-in services can be hidden, your own can be removed.</p>
+          <ul class="service-list" id="serviceList"></ul>
+          <p class="panel-error" id="listError" role="alert" hidden></p>
+        </div>
+
+        <form class="panel-view add-form" id="addForm" novalidate autocomplete="off" hidden>
+          <div class="add-fields">
+            <h2 class="panel-title">Add service</h2>
+            <p class="panel-note">Type with the Keyboard button on your phone remote.</p>
+            <label class="field">
+              <span class="field-label">Name</span>
+              <input class="field-input" id="nameInput" type="text" maxlength="40" placeholder="ARD Mediathek"
+                     spellcheck="false" data-focusable>
+            </label>
+            <label class="field">
+              <span class="field-label">Web address</span>
+              <input class="field-input" id="urlInput" type="text" placeholder="ardmediathek.de"
+                     spellcheck="false" autocapitalize="none" data-focusable>
+            </label>
+            <div class="field">
+              <span class="field-label">Color</span>
+              <div class="swatches" id="swatches" role="radiogroup" aria-label="Tile color"></div>
+            </div>
+            <p class="panel-error" id="formError" role="alert" hidden></p>
+            <div class="form-actions">
+              <button type="button" class="action" id="cancelAdd" data-focusable>Cancel</button>
+              <button type="submit" class="action action-primary" id="saveAdd" data-focusable>Add service</button>
+            </div>
+          </div>
+          <div class="add-preview" aria-hidden="true">
+            <span class="field-label">Preview</span>
+            <div class="tile-preview" id="tilePreview"><span id="tilePreviewName">Name</span></div>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="/tv/settings.js"></script>
+</body>
+</html>

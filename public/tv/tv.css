@@ -1,71 +1,12 @@
 /*
-  Purpose: Styles for the TV home screen: title, clock, one centered row of app tiles, pairing QR.
-  Depends on: markup in /tv/index.html, classes and data-app attributes set by /tv/tv.js.
+  Purpose: Styles for the TV home screen: clock, the grid of app tiles (five per row), the
+           settings gear bottom left and the pairing QR bottom right.
+  Depends on: /tv/base.css (tokens, --u, top bar), markup in /tv/index.html, classes, data-app
+              attributes and --cols set by /tv/tv.js.
   Used by: /tv/index.html.
-  Notes: All sizes derive from --u, which is 1vw on a 16:9 screen and shrinks to the height on
-         taller or narrower screens, so 1280x720, 1920x1080 and 4K render identically scaled and
-         nothing overflows. The cursor is hidden everywhere because the remote draws its own
-         cursor through the overlay in touchpad mode.
+  Notes: The tile grid scrolls inside the stage when it has more rows than fit between the top bar
+         and the bottom corners; tv.js keeps the focused tile in view.
 */
-
-:root {
-  --u: min(1vw, calc(100vh / 56.25));
-  --bg: #07080c;
-  --text: #f1f3f7;
-  --muted: rgba(241, 243, 247, 0.62);
-  --faint: rgba(241, 243, 247, 0.4);
-  --ring: #ffffff;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  color-scheme: dark;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  cursor: none !important;
-}
-
-[hidden] {
-  display: none !important;
-}
-
-html,
-body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-body {
-  background:
-    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(58, 72, 110, 0.22) 0%, rgba(0, 0, 0, 0) 70%),
-    linear-gradient(180deg, #0c0e14 0%, #07080c 100%);
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  user-select: none;
-}
-
-/* Top bar: title left, clock right */
-.topbar {
-  position: absolute;
-  top: calc(var(--u) * 3.2);
-  left: calc(var(--u) * 4.4);
-  right: calc(var(--u) * 4.4);
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.brand {
-  font-size: calc(var(--u) * 1.9);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
 
 .clock {
   font-size: calc(var(--u) * 2.3);
@@ -75,17 +16,29 @@ body {
   color: var(--text);
 }
 
-/* Tile row, vertically centered */
+/* Tile grid, centered between the top bar and the bottom corners. The insets are equal, so a
+   single row sits at the vertical center of the screen; more rows scroll inside the stage. */
 .stage {
   position: absolute;
-  inset: 0;
+  top: calc(var(--u) * 11.5);
+  bottom: calc(var(--u) * 11.5);
+  left: 0;
+  right: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: calc(var(--u) * 1.6) 0;
+  overflow-y: auto;
+  scroll-padding: calc(var(--u) * 1.6);
+  scrollbar-width: none;
+}
+
+.stage::-webkit-scrollbar {
+  display: none;
 }
 
 .tile-row {
-  display: flex;
+  margin: auto;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), calc(var(--u) * 15.2));
   gap: calc(var(--u) * 2.6);
 }
 
@@ -176,6 +129,48 @@ body {
   letter-spacing: 0.06em;
 }
 
+/* Settings gear, bottom left (mirrors the pairing card) */
+.settings-gear {
+  position: absolute;
+  left: calc(var(--u) * 4.4);
+  bottom: calc(var(--u) * 3.4);
+  width: calc(var(--u) * 4.2);
+  height: calc(var(--u) * 4.2);
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  outline: none;
+  transition:
+    transform 240ms var(--ease),
+    background-color 240ms var(--ease),
+    color 240ms var(--ease),
+    box-shadow 240ms var(--ease);
+  animation: fade-in 600ms var(--ease) both;
+}
+
+.settings-gear svg {
+  width: 56%;
+  height: 56%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.settings-gear.is-focused {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 calc(var(--u) * 0.26) var(--bg),
+    0 0 0 calc(var(--u) * 0.5) var(--ring),
+    0 0 calc(var(--u) * 2.4) calc(var(--u) * 0.3) rgba(255, 255, 255, 0.2);
+}
+
 /* Pairing card, bottom right */
 .pairing {
   position: absolute;
@@ -238,17 +233,9 @@ body {
   }
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tile,
+  .settings-gear,
   .pairing {
     animation: none;
     transition: none;

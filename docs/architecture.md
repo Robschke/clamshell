@@ -45,9 +45,11 @@ as the remote. Everything runs locally, one Node process, no cloud.
 | `src/server/cdp-client.js` | server | Minimal CDP client on Node's global `WebSocket`. |
 | `src/server/tv-controller.js` | server | Maps remote commands to CDP calls and overlay calls. Owns cursor position and mode. |
 | `src/server/audio-outputs.js` | lead | Lists / switches the Mac's sound outputs through `build/tv-audio`. |
-| `src/server/app-catalog.js` | server | Tile list (id, name, url, colors, navigation, userAgent). |
+| `src/server/app-catalog.js` | server | Tile list (id, name, url, colors, navigation, userAgent): built-in plus user services, hidden list. |
+| `src/server/settings-store.js` | server | `settings.json` in the data folder, one top-level key per settings area, atomic writes. |
+| `src/server/service-settings.js` | server | The "Services" settings area: validates, saves and applies added, removed and hidden services. |
 | `src/inject/tv-overlay.js` | overlay | Injected into every page. Highlight navigation, player mode, cursor, quick menu. |
-| `public/tv/` | frontend | TV home screen (`index.html`, css, js). |
+| `public/tv/` | frontend | TV home screen (`index.html`, `tv.css`, `tv.js`), settings page (`settings.html`, `settings.css`, `settings.js`), shared `base.css`. |
 | `public/remote/` | frontend | Phone remote (`index.html`, css, js, web app manifest). |
 | `macos/Sources/` | lead | Mac app (Swift, AppKit): starts and supervises the server, Dock + menu bar menu, QR window. |
 | `macos/AudioTool/main.swift` | lead | Sound helper CLI (`build/tv-audio`): `list` / `select <uid> [<source>]` (CoreAudio), `wireless` / `select-cc <name>` (Control Center), JSON on stdout. |
@@ -55,6 +57,9 @@ as the remote. Everything runs locally, one Node process, no cloud.
 | `macos/build-app.sh` | lead | `npm run app`: compiles the app, builds the icon from `macos/app-icon.svg`, installs to /Applications. |
 
 ## App catalog
+
+Built-in services below. Users can hide built-in services and add their own in the TV settings
+(see "Settings"); user services use spatial navigation and are recognized by their hostname.
 
 | id | name | url | navigation |
 |----|------|-----|------------|
@@ -78,10 +83,25 @@ as the remote. Everything runs locally, one Node process, no cloud.
 | GET | `/api/info` | `{ remoteUrl, remoteUrlIp, qrSvg }` (QR encodes `remoteUrl`) |
 | GET | `/api/apps` | `[{ id, name, url, color, textColor }]` |
 | POST | `/api/open` | `{ appId }` or `{ url }` → `{ ok: true }`; used by launcher tiles |
+| GET | `/api/settings` | `{ services: [{ id, name, url, color, textColor, builtIn, hidden }], colors: [hex] }` |
+| POST | `/api/settings/services` | `{ name, url, color }` → `{ ok, id, services, colors }` (201); color must be one of `colors` |
+| PATCH | `/api/settings/services/<id>` | `{ hidden: true \| false }` → `{ ok, services, colors }`; built-in services only |
+| DELETE | `/api/settings/services/<id>` | → `{ ok, services, colors }`; user services only |
 | GET | `/` | redirects to `/remote/` |
 
 `remoteUrl` = `http://<os.hostname()>:8787/remote/` (hostname ends with `.local` on macOS),
 `remoteUrlIp` = same with the first non-internal IPv4 address.
+
+`/api/apps` leaves out hidden services. Invalid settings requests answer 400 with
+`{ ok: false, error }`, where `error` is a sentence the TV shows as is.
+
+## Settings
+
+- Stored in `~/Library/Application Support/Clamshell/settings.json` (`TV_STREAM_SETTINGS_FILE`),
+  one top-level key per settings area: `{ "services": { "custom": [{ id, name, url, color }],
+  "hidden": ["hbomax"] } }`. A file that cannot be parsed is kept as `settings.json.broken`.
+- A new settings area gets its own key, a server module like `service-settings.js`, an entry in
+  `SECTIONS` in `public/tv/settings.js` and a panel in `public/tv/settings.html`.
 
 ## WebSocket protocol (`/ws`, JSON text frames)
 
@@ -208,10 +228,17 @@ Behavior rules for the overlay:
 ## UI
 
 - Language: English. Dark theme (TV-like), large type.
-- TV home: one row of big tiles (Netflix, YouTube, Prime Video, Disney+, HBO Max), clock top
-  right, QR code with "Scan to use your phone as remote" bottom right, title "Clamshell" top left.
-  The focused tile is scaled up with a bright ring. Arrow keys move focus, Enter opens
-  (POST `/api/open`).
+- TV home: big tiles in rows of five (built-in services, then the user's own), clock top
+  right, QR code with "Scan to use your phone as remote" bottom right, title "Clamshell" top left,
+  settings gear bottom left. The focused tile is scaled up with a bright ring. Left/right move
+  within a row, up/down between rows, down from the last row reaches the gear, Enter opens
+  (POST `/api/open`) or opens the settings.
+- TV settings (`/tv/settings.html`): sidebar with the sections (Services) and Back on the left,
+  the section's panel on the right. Services lists every service with Hide/Show (built-in) or
+  Remove (own, no confirmation) and "Add service" at the end: Name and Web address are typed
+  with the phone's Keyboard button, a color comes from eight swatches, a tile preview shows the
+  result. Arrow keys move to the nearest control; Back closes the form, then returns to the
+  sidebar, then to the home screen.
 - Remote (Fire TV style): header "Clamshell" + segmented switch `Remote | Pad`. D-pad mode: round
   D-pad with OK in the center; rows Back / Home / ☰; ⏪ / ⏯ / ⏩; 🔉 / 🔇 / 🔊; bottom row
   Keyboard / Link. Pad mode replaces the D-pad with a touchpad surface; the button rows stay.

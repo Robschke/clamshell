@@ -102,6 +102,12 @@ The TV uses its own Chrome profile (`~/Library/Application Support/Clamshell/chr
 sign in to each service once on the TV. Switch the remote to Pad mode and use the Keyboard button
 for login forms. YouTube TV offers sign-in with a code on the phone.
 
+## Services
+
+The gear at the bottom left of the TV home screen opens the settings. Under Services you can hide
+built-in services and add your own (name, web address, tile color); type the text with the
+Keyboard button on the remote. They are saved in `~/Library/Application Support/Clamshell/settings.json`.
+
 ## Settings (environment variables)
 
 | Variable | Default | Meaning |
@@ -109,12 +115,13 @@ for login forms. YouTube TV offers sign-in with a code on the phone.
 | `TV_STREAM_PORT` | 8787 | HTTP and WebSocket port |
 | `TV_STREAM_CDP_PORT` | 9222 | Chrome DevTools port (localhost only) |
 | `TV_STREAM_PROFILE_DIR` | see above | Chrome profile directory |
+| `TV_STREAM_SETTINGS_FILE` | `settings.json` next to the profile | Settings made on the TV |
 | `TV_STREAM_WINDOWED` | off | `1` = normal window instead of kiosk |
 | `TV_STREAM_HEADLESS` | off | `1` = no window, for automated tests |
 | `TV_STREAM_CHROME_PATH` | Chrome in /Applications | Chrome binary |
 | `TV_STREAM_OVERLAY_PATH` | `src/inject/tv-overlay.js` | Injected overlay script |
 
-Anyone on the same network who opens the remote URL can control the TV.
+Anyone on the same network who opens the remote URL can control the TV and change its settings.
 
 ## License
 

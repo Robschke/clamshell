@@ -1,13 +1,18 @@
 /*
-  Purpose: TV home screen behavior: renders app tiles, keyboard focus, opening apps, clock, pairing QR.
-  Depends on: /tv/index.html (element ids), /tv/tv.css (classes), GET /api/apps, GET /api/info,
-              POST /api/open (contract in docs/architecture.md).
+  Purpose: TV home screen behavior: renders app tiles, keyboard focus, opening apps, the settings
+           gear, clock, pairing QR.
+  Depends on: /tv/index.html (element ids), /tv/tv.css (classes, --cols), GET /api/apps,
+              GET /api/info, POST /api/open (contract in docs/architecture.md), /tv/settings.html.
   Used by: /tv/index.html.
-  Notes: The launcher is a "native" page for the remote: the server sends real ArrowLeft/ArrowRight/
-         Enter key events, so this file only listens to the keyboard. Focus is a CSS class plus real
-         DOM focus; Enter is handled in keydown (with preventDefault) so the button's own click
-         activation cannot open the app twice. If the server cannot open the app (unreachable or an
-         error), the page navigates itself, which keeps the launcher usable without the server.
+  Notes: The launcher is a "native" page for the remote: the server sends real arrow and Enter
+         key events, so this file only listens to the keyboard. Tiles form rows of COLUMNS; left
+         and right stay within a row, down from the last row reaches the gear, up from the gear
+         returns to the tile focused before. An empty list from the server is valid (every
+         service hidden); only a failed request falls back to the built-in catalog. Focus is a
+         CSS class plus real DOM focus; Enter is handled in keydown (with preventDefault) so the
+         button's own click activation cannot open the app twice. If the server cannot open the
+         app (unreachable or an error), the page navigates itself, which keeps the launcher usable
+         without the server.
 */
 (function () {
   "use strict";
@@ -22,6 +27,10 @@
   ];
 
   var FOCUS_STORAGE_KEY = "tvStream.focusedAppId";
+  var GEAR_FOCUS_ID = "settings";
+  var SETTINGS_URL = "/tv/settings.html";
+  var COLUMNS = 5;
+  var GEAR = -1;
   var OPEN_TIMEOUT_MS = 3000;
   var OPEN_LOCK_MS = 1500;
   var INFO_RETRY_MS = 5000;
@@ -33,10 +42,12 @@
   var qrEl = document.getElementById("qr");
   var remoteUrlEl = document.getElementById("remoteUrl");
   var remoteUrlIpEl = document.getElementById("remoteUrlIp");
+  var gearEl = document.getElementById("settingsGear");
 
   var apps = [];
   var tiles = [];
   var focusIndex = 0;
+  var lastTileIndex = 0;
   var lastOpenAt = 0;
 
   // ---- sessionStorage (may throw in locked-down profiles) ----
@@ -88,9 +99,8 @@
   function loadApps() {
     return fetchJson("/api/apps", null, 4000)
       .then(function (data) {
-        var list = Array.isArray(data) ? data.filter(isValidApp) : [];
-        if (!list.length) throw new Error("empty app list");
-        return list;
+        if (!Array.isArray(data)) throw new Error("bad app list");
+        return data.filter(isValidApp);
       })
       .catch(function () {
         return FALLBACK_APPS;
@@ -102,6 +112,7 @@
   function renderTiles(list) {
     apps = list;
     tileRow.textContent = "";
+    tileRow.style.setProperty("--cols", String(Math.max(1, Math.min(COLUMNS, list.length))));
     tiles = list.map(function (app, index) {
       var fallback = fallbackFor(app.id) || {};
       var tile = document.createElement("button");
@@ -133,11 +144,11 @@
     });
 
     var stored = readStoredFocus();
-    var storedIndex = -1;
+    var storedIndex = stored === GEAR_FOCUS_ID ? GEAR : 0;
     for (var i = 0; i < list.length; i++) {
       if (list[i].id === stored) storedIndex = i;
     }
-    setFocus(storedIndex >= 0 ? storedIndex : 0);
+    setFocus(storedIndex);
   }
 
   // Chrome may emit a mousemove at an unchanged position after layout changes (for example when
@@ -150,15 +161,36 @@
     return moved;
   }
 
+  // index is a tile index or GEAR; without tiles the gear is the only target.
   function setFocus(index) {
-    if (!tiles.length) return;
-    focusIndex = Math.max(0, Math.min(tiles.length - 1, index));
+    focusIndex = index === GEAR || !tiles.length ? GEAR : Math.max(0, Math.min(tiles.length - 1, index));
+    if (focusIndex !== GEAR) lastTileIndex = focusIndex;
     tiles.forEach(function (tile, i) {
       tile.classList.toggle("is-focused", i === focusIndex);
     });
-    var tile = tiles[focusIndex];
-    if (document.activeElement !== tile) tile.focus({ preventScroll: true });
-    storeFocus(apps[focusIndex].id);
+    gearEl.classList.toggle("is-focused", focusIndex === GEAR);
+    var target = focusIndex === GEAR ? gearEl : tiles[focusIndex];
+    if (document.activeElement !== target) target.focus({ preventScroll: true });
+    if (focusIndex !== GEAR) target.scrollIntoView({ block: "nearest" });
+    storeFocus(focusIndex === GEAR ? GEAR_FOCUS_ID : apps[focusIndex].id);
+  }
+
+  function moveFocus(key) {
+    if (focusIndex === GEAR) {
+      if (key === "ArrowUp" && tiles.length) setFocus(lastTileIndex);
+      return;
+    }
+    var col = focusIndex % COLUMNS;
+    var row = Math.floor(focusIndex / COLUMNS);
+    var lastRow = Math.floor((tiles.length - 1) / COLUMNS);
+    if (key === "ArrowLeft" && col > 0) setFocus(focusIndex - 1);
+    else if (key === "ArrowRight" && col < COLUMNS - 1 && focusIndex + 1 < tiles.length) setFocus(focusIndex + 1);
+    else if (key === "ArrowUp" && row > 0) setFocus(focusIndex - COLUMNS);
+    else if (key === "ArrowDown") setFocus(row < lastRow ? Math.min(focusIndex + COLUMNS, tiles.length - 1) : GEAR);
+  }
+
+  function openSettings() {
+    window.location.href = SETTINGS_URL;
   }
 
   function openApp(index) {
@@ -190,19 +222,19 @@
   }
 
   function onKeyDown(event) {
-    if (!tiles.length) return;
     switch (event.key) {
       case "ArrowLeft":
-        event.preventDefault();
-        setFocus(focusIndex - 1);
-        break;
       case "ArrowRight":
+      case "ArrowUp":
+      case "ArrowDown":
         event.preventDefault();
-        setFocus(focusIndex + 1);
+        moveFocus(event.key);
         break;
       case "Enter":
         event.preventDefault();
-        if (!event.repeat) openApp(focusIndex);
+        if (event.repeat) break;
+        if (focusIndex === GEAR) openSettings();
+        else openApp(focusIndex);
         break;
       default:
         break;
@@ -250,9 +282,17 @@
   // ---- start ----
 
   document.addEventListener("keydown", onKeyDown);
-  // Returning to the launcher from history may restore the page from the back/forward cache.
+  gearEl.addEventListener("mousemove", function (event) {
+    if (focusIndex !== GEAR && pointerReallyMoved(event)) setFocus(GEAR);
+  });
+  gearEl.addEventListener("click", function () {
+    setFocus(GEAR);
+    openSettings();
+  });
+  // Returning to the launcher from history may restore the page from the back/forward cache;
+  // the services may have changed in the settings meanwhile.
   window.addEventListener("pageshow", function (event) {
-    if (event.persisted && tiles.length) renderTiles(apps);
+    if (event.persisted) loadApps().then(renderTiles);
   });
 
   updateClock();

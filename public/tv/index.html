@@ -1,7 +1,8 @@
 <!doctype html>
 <!--
   Purpose: TV home screen (launcher) shown fullscreen on the HDMI display.
-  Depends on: /tv/tv.css, /tv/tv.js, server endpoints GET /api/apps, GET /api/info, POST /api/open.
+  Depends on: /tv/base.css, /tv/tv.css, /tv/tv.js, server endpoints GET /api/apps, GET /api/info,
+              POST /api/open. The gear opens /tv/settings.html.
   Used by: src/server/chrome-launcher.js and tv-controller.js (navigate Chrome to /tv/).
   Notes: Asset paths are absolute so the page works whether it is served at /tv or /tv/.
          Tiles are rendered by tv.js; the markup only holds the static frame.
@@ -12,6 +13,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Clamshell</title>
+  <link rel="stylesheet" href="/tv/base.css">
   <link rel="stylesheet" href="/tv/tv.css">
 </head>
 <body>
@@ -23,6 +25,10 @@
   <main class="stage">
     <div class="tile-row" id="tiles" role="list" aria-label="Apps"></div>
   </main>
+
+  <button type="button" class="settings-gear" id="settingsGear" aria-label="Settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></svg>
+  </button>
 
   <aside class="pairing" id="pairing" hidden>
     <div class="pairing-text">

@@ -85,6 +85,7 @@
   var tvState = null;
   var mode = "touchpad";
   var appNames = Object.assign({}, FALLBACK_APP_NAMES);
+  var namesRequestedFor = null;
 
   function haptic() {
     if (navigator.vibrate) {
@@ -215,6 +216,11 @@
     } else if (!tvState.appId) {
       text = tvState.title && tvState.title !== "Clamshell" ? tvState.title : "Home";
     } else {
+      // A service added in the TV settings after this page loaded: fetch the names once more.
+      if (!appNames[tvState.appId] && namesRequestedFor !== tvState.appId) {
+        namesRequestedFor = tvState.appId;
+        loadAppNames();
+      }
       var name = appNames[tvState.appId] || tvState.appId;
       var title = typeof tvState.title === "string" ? tvState.title.trim() : "";
       text = title && title.toLowerCase().indexOf(name.toLowerCase()) === -1 ? name + " · " + title : title || name;
