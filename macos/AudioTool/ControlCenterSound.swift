@@ -1,6 +1,6 @@
 // Purpose: Reads and selects sound outputs through Control Center's Sound panel, for outputs that
 //          CoreAudio does not expose to other apps (AirPlay receivers, unconnected Bluetooth).
-// Depends on: the Accessibility API (the responsible app, TV Stream, needs the Accessibility
+// Depends on: the Accessibility API (the responsible app, Clamshell, needs the Accessibility
 //             permission), Control Center (com.apple.controlcenter) and its element identifiers.
 // Used by: macos/AudioTool/main.swift ("wireless" and "select-cc" commands)
 // Notes:
@@ -55,7 +55,7 @@ enum ControlCenterSound {
     /// Opens Control Center's Sound panel, runs the body with its devices and closes it again.
     private static func withSoundPanel<T>(_ body: ([Device]) throws -> T) throws -> T {
         guard AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary) else {
-            throw ToolError("Allow TV Stream under System Settings > Privacy & Security > Accessibility, then try again.")
+            throw ToolError("Allow Clamshell under System Settings > Privacy & Security > Accessibility, then try again.")
         }
         guard let app = controlCenter(), let menuItem = controlCenterMenuItem(app) else {
             throw ToolError("Control Center is not available")

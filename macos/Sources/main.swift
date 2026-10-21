@@ -1,6 +1,6 @@
-// Purpose: Entry point of the TV Stream Mac app.
+// Purpose: Entry point of the Clamshell Mac app.
 // Depends on: macos/Sources/AppDelegate.swift
-// Used by: macos/build-app.sh (compiled into TV Stream.app/Contents/MacOS/TVStream)
+// Used by: macos/build-app.sh (compiled into Clamshell.app/Contents/MacOS/Clamshell)
 
 import AppKit
 

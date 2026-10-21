@@ -1,4 +1,4 @@
-// Purpose: Keeps the Mac awake with the lid closed, also on battery, while TV Stream runs.
+// Purpose: Keeps the Mac awake with the lid closed, also on battery, while Clamshell runs.
 // Depends on: /usr/bin/pmset (disablesleep needs root, granted through the standard macOS
 //             administrator prompt), /usr/bin/pgrep.
 // Used by: macos/Sources/AppDelegate.swift
@@ -6,8 +6,8 @@
 // - On battery macOS sleeps on lid close no matter which app runs; only "pmset disablesleep"
 //   prevents that, and it is a persistent system setting.
 // - The same authorization starts a root watcher that switches sleep back on as soon as no
-//   TVStream process is left, so quitting or a crash needs no second password prompt. It waits
-//   for any TVStream process (not one pid) so a quick relaunch is not undone by the old watcher.
+//   Clamshell process is left, so quitting or a crash needs no second password prompt. It waits
+//   for any Clamshell process (not one pid) so a quick relaunch is not undone by the old watcher.
 // - The state is read back from "pmset -g" (SleepDisabled) rather than assumed.
 
 import Foundation
@@ -26,12 +26,12 @@ final class LidSleepGuard {
     }
 
     private static let prompt =
-        "TV Stream wants to keep the Mac awake while the lid is closed, also on battery. " +
-        "Sleep is switched back on automatically when TV Stream quits."
+        "Clamshell wants to keep the Mac awake while the lid is closed, also on battery. " +
+        "Sleep is switched back on automatically when Clamshell quits."
 
     private static let command =
         "/usr/bin/pmset -a disablesleep 1; " +
-        "(while /usr/bin/pgrep -x TVStream >/dev/null; do /bin/sleep 2; done; " +
+        "(while /usr/bin/pgrep -x Clamshell >/dev/null; do /bin/sleep 2; done; " +
         "/usr/bin/pmset -a disablesleep 0) >/dev/null 2>&1 &"
 
     /// Shows the administrator prompt (blocks until answered) and enables lid-closed mode.

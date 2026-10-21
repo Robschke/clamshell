@@ -1,4 +1,4 @@
-// Purpose: TV Stream Mac app: starts the server on launch, shows a Dock icon and a menu bar
+// Purpose: Clamshell Mac app: starts the server on launch, shows a Dock icon and a menu bar
 //          menu (status, remote QR code, restart, quit), keeps the Mac awake with the lid
 //          closed while it runs, and stops the server on quit.
 // Depends on: macos/Sources/ServerProcess.swift, macos/Sources/RemoteQRWindow.swift,
@@ -26,14 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var quitting = false
 
     private static let profileDir = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/TV Stream/chrome-profile").path
+        .appendingPathComponent("Library/Application Support/Clamshell/chrome-profile").path
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let info = Bundle.main.infoDictionary ?? [:]
         let appRoot = info["TVStreamAppRoot"] as? String ?? ""
         let nodePath = info["TVStreamNodePath"] as? String ?? "/opt/homebrew/bin/node"
         let logURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/TV Stream/server.log")
+            .appendingPathComponent("Library/Logs/Clamshell/server.log")
         server = ServerProcess(nodePath: nodePath, appRoot: appRoot, logURL: logURL)
         server.onStateChange = { [weak self] state in self?.render(state) }
 
@@ -78,13 +78,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About TV Stream", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "About Clamshell", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Show Remote QR Code…", action: #selector(showQRCode), keyEquivalent: "r")
         appMenu.addItem(withTitle: "Restart TV", action: #selector(restartTv), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide TV Stream", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: "Quit TV Stream", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Hide Clamshell", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Quit Clamshell", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
         // Standard window menu so Cmd+W closes the QR window.
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "tv", accessibilityDescription: "TV Stream")
+            let image = NSImage(systemSymbolName: "tv", accessibilityDescription: "Clamshell")
             image?.isTemplate = true
             button.image = image
         }
@@ -115,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Show Remote QR Code…", action: #selector(showQRCode), keyEquivalent: "")
         menu.addItem(withTitle: "Restart TV", action: #selector(restartTv), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit TV Stream", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit Clamshell", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
     }
 
@@ -127,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .stopped: statusLine.title = "Stopped"
         case .failed(let message):
             statusLine.title = "Not running"
-            showAlert(title: "TV Stream could not start", message: message)
+            showAlert(title: "Clamshell could not start", message: message)
         }
     }
 
@@ -177,8 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func alreadyRunning() {
         statusLine.title = "Already running elsewhere"
         showAlert(
-            title: "TV Stream is already running",
-            message: "A TV Stream server is already active, probably started with npm start in a terminal. Stop it there (Ctrl+C), then open the app again."
+            title: "Clamshell is already running",
+            message: "A Clamshell server is already active, probably started with npm start in a terminal. Stop it there (Ctrl+C), then open the app again."
         )
         NSApp.terminate(nil)
     }

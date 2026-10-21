@@ -1,7 +1,7 @@
 {
-  "name": "TV Stream Remote",
+  "name": "Clamshell Remote",
   "short_name": "TV Remote",
-  "description": "Phone remote for the TV Stream home screen.",
+  "description": "Phone remote for the Clamshell home screen.",
   "start_url": "/remote/",
   "scope": "/remote/",
   "display": "standalone",

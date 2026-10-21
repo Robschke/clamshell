@@ -1,4 +1,4 @@
-// Purpose: Starts and supervises the TV Stream Node server for the Mac app (start, readiness,
+// Purpose: Starts and supervises the Clamshell Node server for the Mac app (start, readiness,
 //          clean stop, restart after crashes, log file).
 // Depends on: src/server/main.js (run with node from the app root; SIGTERM shuts it down
 //             together with the TV Chrome window and caffeinate), GET /api/apps (readiness).
@@ -154,7 +154,7 @@ final class ServerProcess {
         }
     }
 
-    /// True when a TV Stream server answers on the local port (this one or one started elsewhere).
+    /// True when a Clamshell server answers on the local port (this one or one started elsewhere).
     static func isAnswering(completion: @escaping (Bool) -> Void) {
         guard let url = URL(string: "http://127.0.0.1:\(port)/api/apps") else { return completion(false) }
         var request = URLRequest(url: url)

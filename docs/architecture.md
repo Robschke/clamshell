@@ -1,6 +1,6 @@
-# TV Stream architecture
+# Clamshell architecture
 
-TV Stream turns the MacBook into a streaming device: a fullscreen Chrome window on the
+Clamshell turns the MacBook into a streaming device: a fullscreen Chrome window on the
 HDMI display shows a TV home screen and the streaming sites, and a phone web app acts
 as the remote. Everything runs locally, one Node process, no cloud.
 
@@ -23,7 +23,7 @@ as the remote. Everything runs locally, one Node process, no cloud.
 ```
 
 - `caffeinate -dimsu -w <server pid>` keeps the Mac awake while the server runs.
-- Chrome runs with its own profile at `~/Library/Application Support/TV Stream/chrome-profile`
+- Chrome runs with its own profile at `~/Library/Application Support/Clamshell/chrome-profile`
   (logins persist, separate from the user's daily browser).
 - Chrome opens fullscreen on the external (HDMI) display when one is connected, otherwise on
   the built-in display. When an external display is plugged in later, the window moves there.
@@ -119,7 +119,7 @@ as the remote. Everything runs locally, one Node process, no cloud.
 `other`. Selecting a CoreAudio output sets the macOS default output and system output.
 macOS does not hand AirPlay receivers to other apps (the routing API is private), so `scan`
 drives Control Center's Sound panel through the Accessibility API: it briefly appears on screen,
-needs the Accessibility permission for TV Stream, and its entries have uid `cc:<name>`; selecting
+needs the Accessibility permission for Clamshell, and its entries have uid `cc:<name>`; selecting
 one clicks it there. The last scan is remembered and merged into later lists (not marked active).
 
 The server sends `state` on connect and whenever it changes (navigation, title, mode, Chrome up/down).
@@ -209,10 +209,10 @@ Behavior rules for the overlay:
 
 - Language: English. Dark theme (TV-like), large type.
 - TV home: one row of big tiles (Netflix, YouTube, Prime Video, Disney+, HBO Max), clock top
-  right, QR code with "Scan to use your phone as remote" bottom right, title "TV Stream" top left.
+  right, QR code with "Scan to use your phone as remote" bottom right, title "Clamshell" top left.
   The focused tile is scaled up with a bright ring. Arrow keys move focus, Enter opens
   (POST `/api/open`).
-- Remote (Fire TV style): header "TV Stream" + segmented switch `Remote | Pad`. D-pad mode: round
+- Remote (Fire TV style): header "Clamshell" + segmented switch `Remote | Pad`. D-pad mode: round
   D-pad with OK in the center; rows Back / Home / ☰; ⏪ / ⏯ / ⏩; 🔉 / 🔇 / 🔊; bottom row
   Keyboard / Link. Pad mode replaces the D-pad with a touchpad surface; the button rows stay.
   One finger moves the cursor (extra fingers are ignored), tap = click. A short swipe (at most

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Purpose: Builds "TV Stream.app" from macos/Sources and installs it to /Applications, and builds
+# Purpose: Builds "Clamshell.app" from macos/Sources and installs it to /Applications, and builds
 #   the sound output helper build/tv-audio (macos/AudioTool) that the server uses.
 # Depends on: swiftc (Xcode Command Line Tools), qlmanage + sips + iconutil (icon), codesign,
 #   node on the PATH (its absolute path is baked into Info.plist), macos/app-icon.svg.
@@ -8,14 +8,14 @@
 # - The app runs the server from this checkout (TVStreamAppRoot), so server and web changes
 #   apply after "Restart TV" without rebuilding; only changes in macos/ need a rebuild.
 # - TV_STREAM_INSTALL_DIR overrides the target folder; TV_STREAM_SKIP_INSTALL=1 only builds.
-# - An existing "TV Stream.app" is only replaced when its bundle identifier is ours.
+# - An existing "Clamshell.app" is only replaced when its bundle identifier is ours.
 
 set -eu
 
 APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MACOS_DIR="$APP_ROOT/macos"
 BUILD_DIR="$APP_ROOT/build"
-BUNDLE="$BUILD_DIR/TV Stream.app"
+BUNDLE="$BUILD_DIR/Clamshell.app"
 BUNDLE_ID="local.tvstream.mac"
 INSTALL_DIR="${TV_STREAM_INSTALL_DIR:-/Applications}"
 VERSION="$(node -p "require('$APP_ROOT/package.json').version")"
@@ -25,13 +25,13 @@ xml_escape() {
   printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
 }
 
-echo "Building TV Stream.app $VERSION"
+echo "Building Clamshell.app $VERSION"
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 
 swiftc -O -swift-version 5 \
   -target "$(uname -m)-apple-macos13.0" \
-  -o "$BUNDLE/Contents/MacOS/TVStream" \
+  -o "$BUNDLE/Contents/MacOS/Clamshell" \
   "$MACOS_DIR"/Sources/*.swift
 
 # Sound output helper for the remote's settings; the server runs it from build/.
@@ -60,10 +60,10 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>TV Stream</string>
-  <key>CFBundleDisplayName</key><string>TV Stream</string>
+  <key>CFBundleName</key><string>Clamshell</string>
+  <key>CFBundleDisplayName</key><string>Clamshell</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
-  <key>CFBundleExecutable</key><string>TVStream</string>
+  <key>CFBundleExecutable</key><string>Clamshell</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -82,11 +82,11 @@ echo "Built $BUNDLE"
 
 [ "${TV_STREAM_SKIP_INSTALL:-}" = "1" ] && exit 0
 
-TARGET="$INSTALL_DIR/TV Stream.app"
+TARGET="$INSTALL_DIR/Clamshell.app"
 if [ -e "$TARGET" ]; then
   EXISTING_ID="$(defaults read "$TARGET/Contents/Info" CFBundleIdentifier 2>/dev/null || true)"
   if [ "$EXISTING_ID" != "$BUNDLE_ID" ]; then
-    echo "$TARGET exists and is not TV Stream ($EXISTING_ID); not replacing it." >&2
+    echo "$TARGET exists and is not Clamshell ($EXISTING_ID); not replacing it." >&2
     exit 1
   fi
   rm -rf "$TARGET"

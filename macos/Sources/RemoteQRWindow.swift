@@ -21,7 +21,7 @@ final class RemoteQRWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "TV Stream Remote"
+        window.title = "Clamshell Remote"
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua)
         super.init(window: window)
@@ -78,7 +78,7 @@ final class RemoteQRWindowController: NSWindowController {
 
     private func show(info: [String: Any]?) {
         guard let remoteUrl = info?["remoteUrl"] as? String else {
-            primaryLabel.stringValue = "TV Stream is not running."
+            primaryLabel.stringValue = "Clamshell is not running."
             return
         }
         primaryLabel.stringValue = remoteUrl

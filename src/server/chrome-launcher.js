@@ -9,7 +9,7 @@
 //   example a locked profile) does not spin.
 // - A Chrome already answering on the debugging port is reused, so restarting the server does not
 //   restart playback. On shutdown the launcher closes the Chrome it spawned, and also a reused
-//   one that runs with the TV Stream profile (left over from a crashed server run). A Chrome on
+//   one that runs with the Clamshell profile (left over from a crashed server run). A Chrome on
 //   the port with any other profile is never closed.
 // - Chrome is spawned detached (its own process group) so a Ctrl+C in the terminal does not kill
 //   it before the shutdown sequence decides what to do.
@@ -156,7 +156,7 @@ export class ChromeLauncher extends EventEmitter {
           this.#adopted = ours;
           log(ours
             ? `[tv-stream] reusing running Chrome on port ${cdpPort}`
-            : `[tv-stream] port ${cdpPort} answers but not with the TV Stream profile; using it anyway`);
+            : `[tv-stream] port ${cdpPort} answers but not with the Clamshell profile; using it anyway`);
         }
       } else {
         this.#spawn();

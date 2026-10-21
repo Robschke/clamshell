@@ -211,7 +211,7 @@
     } else if (tvState.tvConnected === false) {
       text = "TV is not available";
     } else if (!tvState.appId) {
-      text = tvState.title && tvState.title !== "TV Stream" ? tvState.title : "Home";
+      text = tvState.title && tvState.title !== "Clamshell" ? tvState.title : "Home";
     } else {
       var name = appNames[tvState.appId] || tvState.appId;
       var title = typeof tvState.title === "string" ? tvState.title.trim() : "";

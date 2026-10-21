@@ -1,5 +1,5 @@
 <!--
-  Purpose: Source artwork for the TV Stream Mac app icon (Dock, Applications, Spotlight).
+  Purpose: Source artwork for the Clamshell Mac app icon (Dock, Applications, Spotlight).
   Depends on: nothing.
   Used by: macos/build-app.sh (rendered to PNG sizes and packed into AppIcon.icns).
   Notes: 1024 canvas with the macOS icon grid (824 px tile, 100 px margin). Abstract motif: a

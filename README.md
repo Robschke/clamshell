@@ -1,4 +1,4 @@
-# TV Stream
+# Clamshell
 
 Turns the MacBook into a streaming device. Chrome runs fullscreen on the HDMI display with a TV
 home screen (Netflix, YouTube TV, Prime Video, Disney+, HBO Max), and the phone is the remote.
@@ -27,17 +27,17 @@ phone cannot reach the remote.
 ## Mac app
 
 ```sh
-npm run app      # builds "TV Stream.app" and installs it to /Applications
+npm run app      # builds "Clamshell.app" and installs it to /Applications
 ```
 
-Then open TV Stream from Spotlight (Cmd+Space), Launchpad or the Applications folder. It starts
+Then open Clamshell from Spotlight (Cmd+Space), Launchpad or the Applications folder. It starts
 the server and the TV, shows a Dock icon and a TV icon in the menu bar:
 
-- Menu bar menu: status, lid-closed state, "Show Remote QR Code…", "Restart TV", "Quit TV Stream".
+- Menu bar menu: status, lid-closed state, "Show Remote QR Code…", "Restart TV", "Quit Clamshell".
 - Dock menu (right-click): "Show Remote QR Code…", "Restart TV".
 - Clicking the Dock icon brings the TV window to the front.
 - Quit (Cmd+Q or the menu) stops the server and closes the TV window.
-- Server output goes to `~/Library/Logs/TV Stream/server.log`; a crashed server is restarted.
+- Server output goes to `~/Library/Logs/Clamshell/server.log`; a crashed server is restarted.
 
 The app runs the code in this folder, so server and web changes need only "Restart TV". Changes
 in `macos/` need `npm run app` again. If a server is already running in a terminal, the app says
@@ -51,7 +51,7 @@ Bluetooth). A tap switches the system output. This uses the helper `build/tv-aud
 
 AirPlay receivers (Apple TV, HomePod) are only offered by Control Center, so "Show AirPlay
 devices" reads them there: Control Center appears on the TV for about two seconds. The first time
-macOS asks to allow TV Stream under System Settings > Privacy & Security > Accessibility; turn it
+macOS asks to allow Clamshell under System Settings > Privacy & Security > Accessibility; turn it
 on and tap the row again. After `npm run app` macOS may ask again, because the rebuilt app counts
 as a new version.
 
@@ -68,15 +68,15 @@ mode), and the server keeps the Mac awake (`caffeinate`) while it runs.
 
 On battery macOS always sleeps on lid close. The Mac app therefore asks for the administrator
 password at start and sets `pmset disablesleep 1` while it runs; a watcher started with the same
-authorization sets it back to 0 about 2 s after the last TVStream process ends (quit or crash).
+authorization sets it back to 0 about 2 s after the last Clamshell process ends (quit or crash).
 If the password prompt is cancelled, the menu bar menu shows "Keep Awake With Lid Closed…" to
-try again. Check with `pmset -g | grep SleepDisabled`; after a hard power-off while TV Stream was
-running it can stay at 1 until TV Stream starts and quits again, or until
+try again. Check with `pmset -g | grep SleepDisabled`; after a hard power-off while Clamshell was
+running it can stay at 1 until Clamshell starts and quits again, or until
 `sudo pmset -a disablesleep 0`.
 
 ## First use
 
-The TV uses its own Chrome profile (`~/Library/Application Support/TV Stream/chrome-profile`), so
+The TV uses its own Chrome profile (`~/Library/Application Support/Clamshell/chrome-profile`), so
 sign in to each service once on the TV. Switch the remote to Pad mode and use the Keyboard button
 for login forms. YouTube TV offers sign-in with a code on the phone.
 

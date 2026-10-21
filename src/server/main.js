@@ -14,8 +14,11 @@
 // - caffeinate -w <pid> also exits on its own if this process dies without cleanup.
 // - The Mac's own mouse pointer is hidden on every TV page except in windowed mode, where the
 //   dev window is used with the real mouse.
+// - A data folder left under the app's former name "TV Stream" is moved to "Clamshell" before
+//   Chrome starts, so the TV keeps its streaming logins. Skipped when TV_STREAM_PROFILE_DIR is set.
 
 import { spawn } from 'node:child_process';
+import { existsSync, renameSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,11 +34,22 @@ const log = (line) => console.log(line);
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const flag = (name) => ['1', 'true', 'yes'].includes(String(process.env[name] ?? '').toLowerCase());
 
+const dataDir = path.join(os.homedir(), 'Library/Application Support/Clamshell');
+const formerDataDir = path.join(os.homedir(), 'Library/Application Support/TV Stream');
+if (!process.env.TV_STREAM_PROFILE_DIR && !existsSync(dataDir) && existsSync(formerDataDir)) {
+  try {
+    renameSync(formerDataDir, dataDir);
+    log(`[tv-stream] moved ${formerDataDir} to ${dataDir}`);
+  } catch (err) {
+    log(`[tv-stream] moving ${formerDataDir} failed: ${err.message}`);
+  }
+}
+
 const config = {
   port: Number(process.env.TV_STREAM_PORT) || 8787,
   cdpPort: Number(process.env.TV_STREAM_CDP_PORT) || 9222,
   profileDir: path.resolve(process.env.TV_STREAM_PROFILE_DIR
-    || path.join(os.homedir(), 'Library/Application Support/TV Stream/chrome-profile')),
+    || path.join(dataDir, 'chrome-profile')),
   windowed: flag('TV_STREAM_WINDOWED'),
   headless: flag('TV_STREAM_HEADLESS'),
   publicDir: path.join(appRoot, 'public'),
