@@ -2,6 +2,7 @@
   "name": "tv-stream",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Turns the MacBook into a streaming device controlled from a phone web app",
   "type": "module",
   "engines": {

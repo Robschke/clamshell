@@ -93,3 +93,7 @@ for login forms. YouTube TV offers sign-in with a code on the phone.
 | `TV_STREAM_OVERLAY_PATH` | `src/inject/tv-overlay.js` | Injected overlay script |
 
 Anyone on the same network who opens the remote URL can control the TV.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
