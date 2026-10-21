@@ -215,6 +215,8 @@ export class ChromeLauncher extends EventEmitter {
       '--autoplay-policy=no-user-gesture-required',
       '--hide-crash-restore-bubble',
       '--noerrdialogs',
+      // No "Translate this page?" bubble when a site's language differs from Chrome's UI language.
+      '--disable-features=Translate',
     ];
     if (headless) {
       args.push('--headless=new', `--window-size=${HEADLESS_SIZE}`, '--mute-audio');
