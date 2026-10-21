@@ -4,9 +4,31 @@ Turns the MacBook into a streaming device. Chrome runs fullscreen on the HDMI di
 home screen (Netflix, YouTube TV, Prime Video, Disney+, HBO Max), and the phone is the remote.
 Design and protocol: [docs/architecture.md](docs/architecture.md).
 
+## Quick start on another Mac
+
+1. Copy or clone this repository onto the Mac, to a folder where it can stay (the installed app
+   runs the code from there).
+2. In Terminal:
+
+   ```sh
+   cd <repository>/app
+   sh setup.sh
+   ```
+
+The script checks the Xcode Command Line Tools, Node.js 22+ and Google Chrome, offers to install
+missing ones (Homebrew for Node and Chrome, Apple's installer for the Command Line Tools; run the
+script again after that one), installs the npm packages, builds Clamshell.app into /Applications
+(~/Applications if /Applications is not writable) and opens it. Options: `--yes` installs
+missing tools without asking, `--no-open` skips opening the app.
+
+On the first start macOS asks to let node accept incoming connections (allow it, or the phone
+cannot connect) and for the password for the lid-closed mode. Then scan the QR code on the TV.
+After moving the folder, run `sh setup.sh` again.
+
 ## Requirements
 
 - macOS, Node 22 or newer, Google Chrome in /Applications
+- Xcode Command Line Tools (`xcode-select --install`) for the Mac app
 - Phone and Mac on the same Wi-Fi
 
 ## Run
