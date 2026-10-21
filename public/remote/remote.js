@@ -58,7 +58,9 @@
   var headerRow = $("headerRow");
   var buttonsSection = $("buttons");
   var navRow = $("navRow");
+  var mediaRow = $("mediaRow");
   var bottomBar = $("bottomBar");
+  var bottomMedia = $("bottomMedia");
   var settingsBtn = $("settingsBtn");
   var settingsSheet = $("settingsSheet");
   var settingsDone = $("settingsDone");
@@ -81,7 +83,7 @@
   var reconnectTimer = null;
   var hiddenAt = 0;
   var tvState = null;
-  var mode = "dpad";
+  var mode = "touchpad";
   var appNames = Object.assign({}, FALLBACK_APP_NAMES);
 
   function haptic() {
@@ -695,10 +697,10 @@
 
   // ================= Layout swap =================
 
-  // One setting for both modes, remembered on this phone. Storage can be unavailable (private
-  // mode), so the remote falls back to the default layout. In the bottom layout the nav row and
-  // the mode switch move into the bar under the D-pad/pad, so the most used controls sit
-  // together within thumb reach; moving the elements keeps their event handlers.
+  // One setting for both modes, remembered on this phone. The bottom layout is the default, also
+  // when storage is unavailable (private mode). In the bottom layout the nav row and the mode
+  // switch move into the bar under the D-pad/pad and the media row below that, so the most used
+  // controls sit together within thumb reach; moving the elements keeps their event handlers.
   var LAYOUT_KEY = "tvStream.controlsBottom";
 
   function applyControlsBottom(bottom) {
@@ -706,17 +708,20 @@
     if (bottom) {
       bottomBar.appendChild(navRow);
       bottomBar.appendChild(modeSwitch);
+      bottomMedia.appendChild(mediaRow);
     } else {
       buttonsSection.insertBefore(navRow, buttonsSection.firstChild);
+      buttonsSection.insertBefore(mediaRow, navRow.nextSibling);
       headerRow.insertBefore(modeSwitch, settingsBtn);
     }
     bottomBar.hidden = !bottom;
+    bottomMedia.hidden = !bottom;
     layoutBtn.setAttribute("aria-pressed", bottom ? "true" : "false");
     layoutBtn.setAttribute("aria-label", bottom ? "Move controls to the top" : "Move controls to the bottom");
   }
 
   function readControlsBottom() {
-    try { return localStorage.getItem(LAYOUT_KEY) === "1"; } catch (err) { return false; }
+    try { return localStorage.getItem(LAYOUT_KEY) !== "0"; } catch (err) { return true; }
   }
 
   layoutBtn.addEventListener("click", function () {

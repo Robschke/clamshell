@@ -215,12 +215,13 @@ Behavior rules for the overlay:
 - Remote (Fire TV style): header "Clamshell" + segmented switch `Remote | Pad`. D-pad mode: round
   D-pad with OK in the center; rows Back / Home / ☰; ⏪ / ⏯ / ⏩; 🔉 / 🔇 / 🔊; bottom row
   Keyboard / Link. Pad mode replaces the D-pad with a touchpad surface; the button rows stay.
+  The server starts in Pad mode.
   One finger moves the cursor (extra fingers are ignored), tap = click. A short swipe (at most
   300 ms, at least 15 px) that is still faster than 0.4 px/ms at liftoff is a flick and scrolls
   with momentum. A swap button at the end of the Keyboard / Link row switches to the reverse
-  layout: media, volume and Keyboard / Link rows on top, then the D-pad/pad, then one bottom row
-  with Back / Home / ☰ as icons and the Remote | Pad switch (it leaves the header). One setting
-  for both modes, kept in localStorage. Keyboard = live typing (each change is sent immediately). Link = sheet with a
+  layout: volume and Keyboard / Link rows on top, then the D-pad/pad, then a row with Back / Home /
+  ☰ as icons and the Remote | Pad switch (it leaves the header), then ⏪ / ⏯ / ⏩ at the very
+  bottom. One setting for both modes, kept in localStorage; the reverse layout is the default. Keyboard = live typing (each change is sent immediately). Link = sheet with a
   URL field and "Open on TV". A gear in the header opens the settings sheet: "Sound output" list
   (name, kind, checkmark on the active one); a tap switches the Mac's output. The last row, "Show
   AirPlay devices", runs the Control Center scan only on demand because it flashes on the TV.

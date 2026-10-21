@@ -314,8 +314,9 @@ button {
   grid-template-columns: 1fr 1fr var(--row-h);
 }
 
-/* Controls at the bottom: the D-pad/pad block moves below the button rows, and the bottom bar
-   (Back / Home / menu as icons plus the mode switch, moved there by remote.js) sits under it. */
+/* Controls at the bottom: the D-pad/pad block moves below the button rows, the bottom bar
+   (Back / Home / menu as icons plus the mode switch) sits under it, and the media row under that.
+   remote.js moves the rows into those containers. */
 .app.controls-bottom .control-area {
   order: 1;
 }
@@ -329,6 +330,11 @@ button {
 
 .bottom-bar[hidden] {
   display: none;
+}
+
+.bottom-media {
+  order: 3;
+  flex: none;
 }
 
 .bottom-bar .btn-row {

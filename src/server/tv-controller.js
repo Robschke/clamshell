@@ -165,7 +165,7 @@ export class TvController extends EventEmitter {
   #attachFailures = 0;
   #reattachTimer = null;
 
-  #mode = 'dpad';
+  #mode = 'touchpad';
   #url = '';
   #title = '';
   #display = 'builtin';
