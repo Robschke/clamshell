@@ -1,10 +1,11 @@
 // Purpose: Entry point: reads config, starts http + ws, launches and supervises Chrome, keeps the Mac awake, shuts down cleanly.
 // Depends on: src/server/http-server.js, src/server/remote-socket.js, src/server/tv-controller.js,
-//   src/server/chrome-launcher.js, src/server/display-detector.js, /usr/bin/caffeinate.
+//   src/server/chrome-launcher.js, src/server/display-detector.js, src/server/settings-store.js,
+//   src/server/service-settings.js, /usr/bin/caffeinate.
 // Used by: package.json ("npm start", "npm run dev")
 // Notes:
 // - Environment: TV_STREAM_PORT (8787), TV_STREAM_CDP_PORT (9222), TV_STREAM_PROFILE_DIR
-//   (Chrome profile), TV_STREAM_WINDOWED=1 (1280x720 window, no kiosk), TV_STREAM_HEADLESS=1
+//   (Chrome profile), TV_STREAM_SETTINGS_FILE (settings.json in the data folder), TV_STREAM_WINDOWED=1 (1280x720 window, no kiosk), TV_STREAM_HEADLESS=1
 //   (no window at all, for automated tests), TV_STREAM_CHROME_PATH (Chrome binary),
 //   TV_STREAM_OVERLAY_PATH (overlay script, for testing the key-event fallbacks),
 //   TV_STREAM_AUDIO_TOOL (sound output helper, default build/tv-audio).
@@ -25,6 +26,8 @@ import { fileURLToPath } from 'node:url';
 import { createHttpServer } from './http-server.js';
 import { attachRemoteSocket } from './remote-socket.js';
 import { createAudioOutputs } from './audio-outputs.js';
+import { SettingsStore } from './settings-store.js';
+import { createServiceSettings } from './service-settings.js';
 import { TvController } from './tv-controller.js';
 import { ChromeLauncher, findChrome, placeWindow } from './chrome-launcher.js';
 import { listDisplays, pickTargetDisplay, displayKind, watchDisplays } from './display-detector.js';
@@ -50,6 +53,7 @@ const config = {
   cdpPort: Number(process.env.TV_STREAM_CDP_PORT) || 9222,
   profileDir: path.resolve(process.env.TV_STREAM_PROFILE_DIR
     || path.join(dataDir, 'chrome-profile')),
+  settingsFile: path.resolve(process.env.TV_STREAM_SETTINGS_FILE || path.join(dataDir, 'settings.json')),
   windowed: flag('TV_STREAM_WINDOWED'),
   headless: flag('TV_STREAM_HEADLESS'),
   publicDir: path.join(appRoot, 'public'),
@@ -75,7 +79,11 @@ const controller = new TvController({
   hideSystemCursor: !config.windowed,
   log,
 });
-const server = createHttpServer({ publicDir: config.publicDir, port: config.port, controller, log });
+const settings = new SettingsStore({ file: config.settingsFile, log });
+settings.load();
+const services = createServiceSettings({ store: settings, log });
+services.load();
+const server = createHttpServer({ publicDir: config.publicDir, port: config.port, controller, services, log });
 const audio = createAudioOutputs({ toolPath: config.audioToolPath, log });
 const remoteSocket = attachRemoteSocket({ server, controller, audio, log });
 

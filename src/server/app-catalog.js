@@ -1,7 +1,12 @@
 // Purpose: The streaming app tiles and URL helpers (app lookup, navigation style, user agent, YouTube link conversion).
-// Depends on: nothing (pure data and functions).
-// Used by: src/server/tv-controller.js, src/server/http-server.js
+//   Holds the built-in services plus the user's own services and hidden list, set by service-settings.js.
+// Depends on: nothing (pure data and functions; the user services are pushed in through setUserServices).
+// Used by: src/server/tv-controller.js, src/server/http-server.js, src/server/service-settings.js
 // Notes:
+// - Hidden services only leave the tile list (publicApps); lookups by id or URL still find them,
+//   so a link to a hidden service still shows its name on the remote.
+// - User services always use spatial navigation and the default user agent. Their host is the
+//   URL's hostname without "www.", and a built-in service wins when both claim the same host.
 // - `scopePath` limits `navigation: "native"` and `userAgent` to one part of a host: only
 //   youtube.com/tv is the TV app; any other youtube.com page is the desktop site, which gets the
 //   default user agent and spatial navigation like any other site.
@@ -65,13 +70,53 @@ export const APPS = Object.freeze([
   },
 ]);
 
+// Tile colors offered for user services; all of them carry white text.
+export const SERVICE_COLORS = Object.freeze([
+  '#D93A2B', '#E8730C', '#1E9E5A', '#0F8A8A', '#1A73E8', '#5B3FD6', '#B0359B', '#4A5568',
+]);
+
+let userApps = [];
+let hiddenIds = new Set();
+
+// custom: [{ id, name, url, color }] (already validated), hidden: ids of services to leave out.
+export function setUserServices({ custom, hidden }) {
+  userApps = custom.map((service) => ({
+    id: service.id,
+    name: service.name,
+    url: service.url,
+    color: service.color,
+    textColor: '#FFFFFF',
+    hosts: [siteHost(service.url)],
+    navigation: 'spatial',
+    custom: true,
+  }));
+  hiddenIds = new Set(hidden);
+}
+
+function allApps() {
+  return APPS.concat(userApps);
+}
+
 // The public tile list for /api/apps.
 export function publicApps() {
-  return APPS.map(({ id, name, url, color, textColor }) => ({ id, name, url, color, textColor }));
+  return allApps()
+    .filter((app) => !hiddenIds.has(app.id))
+    .map(({ id, name, url, color, textColor }) => ({ id, name, url, color, textColor }));
+}
+
+// Every service with its settings flags, for the settings page.
+export function serviceList() {
+  return allApps().map(({ id, name, url, color, textColor, custom }) => ({
+    id, name, url, color, textColor, builtIn: !custom, hidden: hiddenIds.has(id),
+  }));
+}
+
+export function isBuiltInApp(appId) {
+  return APPS.some((app) => app.id === appId);
 }
 
 export function findAppById(appId) {
-  return APPS.find((app) => app.id === appId) ?? null;
+  return allApps().find((app) => app.id === appId) ?? null;
 }
 
 function parseUrl(url) {
@@ -96,7 +141,7 @@ export function findAppByUrl(url) {
   const parsed = parseUrl(url);
   if (!parsed) return null;
   const hostname = parsed.hostname.toLowerCase();
-  return APPS.find((app) => app.hosts.some((host) => hostMatches(hostname, host))) ?? null;
+  return allApps().find((app) => app.hosts.some((host) => hostMatches(hostname, host))) ?? null;
 }
 
 // The user agent override a URL needs, or "" for the browser default.
@@ -134,16 +179,29 @@ export function youtubeVideoId(url) {
   return id && YOUTUBE_ID.test(id) ? id : null;
 }
 
-// Normalizes a URL from the remote: YouTube watch links become YouTube TV links, other
-// http(s) URLs pass through, a bare "example.com" gets https://. Returns null when not openable.
-export function resolveOpenUrl(raw) {
+// The hostname a site is recognized by: lowercase, without a leading "www.".
+export function siteHost(url) {
+  return parseUrl(url)?.hostname.toLowerCase().replace(/^www\./, '') ?? '';
+}
+
+// An http(s) URL as typed by a person: a bare "example.com" gets https://. Returns the
+// normalized href, or null when it is not an http(s) URL.
+export function normalizeHttpUrl(raw) {
   if (typeof raw !== 'string') return null;
   let text = raw.trim();
   if (!text) return null;
   if (!/^[a-z][a-z0-9+.-]*:/i.test(text) && /^[^\s/]+\.[^\s/]+/.test(text)) text = `https://${text}`;
   const parsed = parseUrl(text);
-  if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) return null;
-  const videoId = youtubeVideoId(parsed.href);
-  if (videoId) return `https://www.youtube.com/tv#/watch?v=${videoId}`;
+  if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) return null;
   return parsed.href;
+}
+
+// Normalizes a URL from the remote: YouTube watch links become YouTube TV links, other
+// http(s) URLs pass through, a bare "example.com" gets https://. Returns null when not openable.
+export function resolveOpenUrl(raw) {
+  const href = normalizeHttpUrl(raw);
+  if (!href) return null;
+  const videoId = youtubeVideoId(href);
+  if (videoId) return `https://www.youtube.com/tv#/watch?v=${videoId}`;
+  return href;
 }

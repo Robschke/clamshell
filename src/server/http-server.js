@@ -1,6 +1,8 @@
-// Purpose: HTTP server: static files from public/ and the REST endpoints /api/info, /api/apps, /api/open.
+// Purpose: HTTP server: static files from public/ and the REST endpoints /api/info, /api/apps, /api/open
+//   and /api/settings (services).
 // Depends on: node:http, qrcode (QR SVG), src/server/app-catalog.js (publicApps),
-//   src/server/tv-controller.js (openApp, openUrl, UserError).
+//   src/server/tv-controller.js (openApp, openUrl, UserError),
+//   src/server/service-settings.js (the `services` object passed in by main.js).
 // Used by: src/server/main.js (remote-socket.js shares the returned server for /ws)
 // Notes:
 // - Every response carries Cache-Control: no-cache so edits to public/ show up on the TV and
@@ -8,6 +10,7 @@
 // - Static paths are resolved against public/ and rejected when they escape it.
 // - The QR SVG is built once per remote URL and cached; the URL only changes with the hostname.
 // - /api/open answers within OPEN_ANSWER_MS even when the navigation is still running.
+// - Like the remote, the settings endpoints are open to anyone on the network.
 
 import http from 'node:http';
 import os from 'node:os';
@@ -89,7 +92,9 @@ function readJsonBody(req) {
   });
 }
 
-export function createHttpServer({ publicDir, port, controller, log = console.log }) {
+const SERVICE_PATH = /^\/api\/settings\/services\/([A-Za-z0-9_-]{1,64})$/;
+
+export function createHttpServer({ publicDir, port, controller, services, log = console.log }) {
   const root = path.resolve(publicDir);
   const qrCache = new Map();
 
@@ -122,6 +127,31 @@ export function createHttpServer({ publicDir, port, controller, log = console.lo
       if (err instanceof UserError) return sendJson(res, 400, { ok: false, error: err.message });
       log(`[tv-stream] /api/open failed: ${err.message}`);
       sendJson(res, 502, { ok: false, error: 'TV did not respond' });
+    }
+  }
+
+  // GET /api/settings, POST /api/settings/services, PATCH and DELETE /api/settings/services/<id>.
+  async function settingsRequest(pathname, req, res) {
+    try {
+      if (pathname === '/api/settings') {
+        if (req.method !== 'GET') return sendJson(res, 405, { ok: false, error: 'Use GET' });
+        return sendJson(res, 200, services.snapshot());
+      }
+      if (pathname === '/api/settings/services') {
+        if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'Use POST' });
+        const service = await services.addService(await readJsonBody(req));
+        return sendJson(res, 201, { ok: true, id: service.id, ...services.snapshot() });
+      }
+      const match = SERVICE_PATH.exec(pathname);
+      if (!match) return sendJson(res, 404, { ok: false, error: 'Unknown endpoint' });
+      if (req.method === 'DELETE') await services.removeService(match[1]);
+      else if (req.method === 'PATCH') await services.setHidden(match[1], (await readJsonBody(req)).hidden);
+      else return sendJson(res, 405, { ok: false, error: 'Use PATCH or DELETE' });
+      return sendJson(res, 200, { ok: true, ...services.snapshot() });
+    } catch (err) {
+      if (err instanceof UserError) return sendJson(res, 400, { ok: false, error: err.message });
+      log(`[tv-stream] ${req.method} ${pathname} failed: ${err.message}`);
+      return sendJson(res, 500, { ok: false, error: 'Saving the settings failed' });
     }
   }
 
@@ -167,6 +197,7 @@ export function createHttpServer({ publicDir, port, controller, log = console.lo
         if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'Use POST' });
         return await openFromBody(req, res);
       }
+      if (pathname === '/api/settings' || pathname.startsWith('/api/settings/')) return await settingsRequest(pathname, req, res);
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { ok: false, error: 'Unknown endpoint' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
       return await serveStatic(pathname, req, res);
